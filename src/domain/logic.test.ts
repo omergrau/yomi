@@ -1,0 +1,258 @@
+import { describe, expect, it } from 'vitest';
+import { addDays, fireTime, weekDays } from './dates';
+import * as L from './logic';
+import type { AppData, Change } from './types';
+
+const NOW = new Date(2026, 10, 6, 9).getTime();
+const TODAY = '2026-11-06'; // A Friday.
+const TOM = '2026-11-07';
+
+const base = (): AppData => L.emptyData();
+const apply = (d: AppData, c: Change) => L.applyChange(d, c);
+function add(d: AppData, title: string, over: Partial<L.TaskInput> = {}) {
+  const c = L.createTask(d, { title, groupId: null, points: 3, date: TODAY, time: null, reminderMin: null, ...over }, NOW);
+  const next = apply(d, c);
+  return { d: next, id: c.tasks!.find((t) => t.title === title)!.id, change: c };
+}
+
+describe('dates', () => {
+  it('crosses months and DST safely', () => {
+    expect(addDays('2026-10-31', 1)).toBe('2026-11-01');
+    expect(addDays('2026-03-27', 3)).toBe('2026-03-30');
+    expect(weekDays(TODAY)[0]).toBe('2026-11-01');
+    expect(weekDays(TODAY)[6]).toBe(TOM);
+  });
+  it('computes the reminder moment, including crossing midnight', () => {
+    expect(fireTime(TODAY, '00:10', 30)).toBe(new Date(2026, 10, 5, 23, 40).getTime());
+  });
+});
+
+describe('points and the daily bar', () => {
+  it('counts points only for finished tasks', () => {
+    let { d, id } = add(base(), 'a', { points: 5 });
+    ({ d } = add(d, 'b', { points: 2 }));
+    expect(L.dayStats(d, TODAY)).toMatchObject({ total: 7, done: 0, closed: false });
+    d = apply(d, L.setDone(d, id, true, TODAY, NOW));
+    expect(L.dayStats(d, TODAY)).toMatchObject({ total: 7, done: 5, left: 2, streakKept: true });
+    expect(L.totalPoints(d)).toBe(5);
+    d = apply(d, L.setDone(d, id, false, TODAY, NOW));
+    expect(L.totalPoints(d)).toBe(0);
+  });
+  it('closes the day at 100% and keeps the streak at 70%', () => {
+    let { d, id } = add(base(), 'a', { points: 3 });
+    const second = add(d, 'b', { points: 1 });
+    d = second.d;
+    d = apply(d, L.setDone(d, id, true, TODAY, NOW));
+    expect(L.dayStats(d, TODAY).streakKept).toBe(true);
+    expect(L.dayStats(d, TODAY).closed).toBe(false);
+    d = apply(d, L.setDone(d, second.id, true, TODAY, NOW));
+    expect(L.dayStats(d, TODAY).closed).toBe(true);
+  });
+  it('raises a level every 250 points', () => {
+    expect(L.levelInfo(0).level).toBe(1);
+    expect(L.levelInfo(249)).toMatchObject({ level: 1, toNext: 1 });
+    expect(L.levelInfo(250)).toMatchObject({ level: 2, into: 0 });
+  });
+});
+
+describe('rollover', () => {
+  const yesterday = addDays(TODAY, -1);
+  it('moves unfinished tasks, records the deferral and drops the old time', () => {
+    let { d, id } = add(base(), 'open', { date: yesterday, time: '10:00', reminderMin: 0 });
+    const c = L.rollover(d, TODAY, NOW);
+    d = apply(d, c);
+    expect(d.tasks[id]).toMatchObject({ date: TODAY, time: null, reminderMin: null, deferrals: 1 });
+    expect(c.events!.map((e) => [e.type, e.fromDate, e.toDate])).toEqual([['rolled', yesterday, TODAY]]);
+  });
+  it('leaves finished tasks and fixed items on their day', () => {
+    let { d, id } = add(base(), 'done', { date: yesterday });
+    d = apply(d, L.setDone(d, id, true, yesterday, NOW));
+    d = apply(d, L.createRecurring(d, { title: 'gym', groupId: null, points: 3, weekdays: [4], time: '07:00', reminderMin: 0 }, yesterday, NOW));
+    const fixed = L.dayTasks(d, yesterday).find((t) => t.recurringId)!;
+    d = apply(d, L.rollover(d, TODAY, NOW));
+    expect(d.tasks[id].date).toBe(yesterday);
+    expect(d.tasks[fixed.id].date).toBe(yesterday);
+  });
+  it('snapshots the ended day so moved tasks still count against it', () => {
+    let { d, id } = add(base(), 'a', { date: yesterday, points: 4 });
+    ({ d } = add(d, 'b', { date: yesterday, points: 1 }));
+    d = apply(d, L.setDone(d, id, true, yesterday, NOW));
+    d = apply(d, L.rollover(d, TODAY, NOW));
+    expect(d.dayLogs[yesterday]).toEqual({ date: yesterday, planned: 5, done: 4 });
+    expect(L.dayStats(d, yesterday).total).toBe(5);
+  });
+  it('counts a long absence once and lands on the opening day', () => {
+    let { d, id } = add(base(), 'a', { date: addDays(TODAY, -5) });
+    d = apply(d, L.rollover(d, TODAY, NOW));
+    expect(d.tasks[id]).toMatchObject({ date: TODAY, deferrals: 1 });
+  });
+  it('does nothing extra when run twice on the same day', () => {
+    let { d, id } = add(base(), 'a', { date: yesterday });
+    d = apply(d, L.rollover(d, TODAY, NOW));
+    const again = L.rollover(d, TODAY, NOW);
+    expect(again.events).toEqual([]);
+    d = apply(d, again);
+    expect(d.tasks[id].deferrals).toBe(1);
+  });
+  it('puts rolled tasks before what was already planned', () => {
+    let { d, id } = add(base(), 'old', { date: yesterday });
+    const fresh = add(d, 'new', { date: TODAY });
+    d = apply(fresh.d, L.rollover(fresh.d, TODAY, NOW));
+    expect(L.dayTasks(d, TODAY).map((t) => t.id)).toEqual([id, fresh.id]);
+  });
+});
+
+describe('streak', () => {
+  const log = (date: string, planned: number, done: number) => ({ date, planned, done });
+  it('stops at the first day under the goal and ignores empty days', () => {
+    const d = base();
+    d.dayLogs = Object.fromEntries([
+      log(addDays(TODAY, -1), 10, 7),
+      log(addDays(TODAY, -2), 0, 0),
+      log(addDays(TODAY, -3), 10, 10),
+      log(addDays(TODAY, -4), 10, 2),
+      log(addDays(TODAY, -5), 10, 10),
+    ].map((l) => [l.date, l]));
+    expect(L.streak(d, TODAY)).toBe(2);
+  });
+  it('adds today only once it reaches the goal', () => {
+    let { d, id } = add(base(), 'a');
+    expect(L.streak(d, TODAY)).toBe(0);
+    d = apply(d, L.setDone(d, id, true, TODAY, NOW));
+    expect(L.streak(d, TODAY)).toBe(1);
+  });
+  it('corrects a past day when a task is finished late', () => {
+    const y = addDays(TODAY, -1);
+    let { d, id } = add(base(), 'a', { date: y });
+    d = apply(d, L.createRecurring(d, { title: 'fixed', groupId: null, points: 2, weekdays: [4], time: null, reminderMin: null }, y, NOW));
+    const fixed = L.dayTasks(d, y).find((t) => t.recurringId)!;
+    d = apply(d, L.setDone(d, id, true, y, NOW));
+    d = apply(d, L.rollover(d, TODAY, NOW));
+    expect(d.dayLogs[y].done).toBe(3);
+    d = apply(d, L.setDone(d, fixed.id, true, TODAY, NOW));
+    expect(d.dayLogs[y].done).toBe(5);
+  });
+});
+
+describe('moving tasks', () => {
+  it('counts a deferral only when moved later', () => {
+    let { d, id } = add(base(), 'a', { date: TOM });
+    let c = L.moveTask(d, id, TODAY, NOW);
+    d = apply(d, c);
+    expect(d.tasks[id].deferrals).toBe(0);
+    expect(c.events![0].type).toBe('moved');
+    c = L.moveTask(d, id, TOM, NOW);
+    d = apply(d, c);
+    expect(d.tasks[id].deferrals).toBe(1);
+    expect(c.events![0].type).toBe('deferred');
+  });
+  it('keeps the time on a manual move and clears it on removal', () => {
+    let { d, id } = add(base(), 'a', { time: '10:00', reminderMin: 10 });
+    d = apply(d, L.moveTask(d, id, TOM, NOW));
+    expect(d.tasks[id]).toMatchObject({ date: TOM, time: '10:00', reminderMin: 10 });
+    d = apply(d, L.removeFromDay(d, id, NOW));
+    expect(d.tasks[id]).toMatchObject({ date: null, time: null, reminderMin: null });
+    expect(L.poolTasks(d).map((t) => t.id)).toEqual([id]);
+  });
+  it('removes only the occurrence of a fixed item', () => {
+    let d = apply(base(), L.createRecurring(base(), { title: 'gym', groupId: null, points: 3, weekdays: [5], time: '07:00', reminderMin: null }, TODAY, NOW));
+    const occ = L.dayTasks(d, TODAY)[0];
+    d = apply(d, L.removeFromDay(d, occ.id, NOW));
+    expect(L.dayTasks(d, TODAY)).toEqual([]);
+    expect(L.poolTasks(d)).toEqual([]);
+    expect(L.materialize(d, TODAY, NOW).tasks?.some((t) => t.date === TODAY)).toBeFalsy();
+  });
+  it('reorders within a day', () => {
+    let a = add(base(), 'a');
+    const b = add(a.d, 'b');
+    const c = add(b.d, 'c');
+    const d = apply(c.d, L.moveTask(c.d, c.id, TODAY, NOW, { index: 0 }));
+    expect(L.dayTasks(d, TODAY).map((t) => t.title)).toEqual(['c', 'a', 'b']);
+  });
+  it('places a timed task by its time', () => {
+    let { d } = add(base(), 'late', { time: '15:00' });
+    ({ d } = add(d, 'early', { time: '08:00' }));
+    expect(L.dayTasks(d, TODAY).map((t) => t.title)).toEqual(['early', 'late']);
+  });
+  it('keeps points on a deleted group task', () => {
+    const g = L.createGroup(base(), 'Sport', NOW);
+    let d = apply(base(), g.change);
+    const a = add(d, 'a', { groupId: g.group!.id });
+    d = apply(a.d, L.setDone(a.d, a.id, true, TODAY, NOW));
+    expect(L.groupWeekPoints(d, g.group!.id, TODAY)).toBe(3);
+    d = apply(d, L.deleteGroup(d, g.group!.id));
+    expect(d.groups).toEqual([]);
+    expect(d.tasks[a.id].groupId).toBeNull();
+    expect(L.totalPoints(d)).toBe(3);
+  });
+});
+
+describe('fixed items', () => {
+  it('creates occurrences on the chosen weekdays and never twice', () => {
+    let d = base();
+    d = apply(d, L.createRecurring(d, { title: 'x', groupId: null, points: 2, weekdays: [0, 5], time: '09:00', reminderMin: 0 }, TODAY, NOW));
+    const dates = L.alive(d).map((t) => t.date).sort();
+    expect(dates[0]).toBe(TODAY);
+    expect(dates).toContain('2026-11-08');
+    expect(dates).not.toContain(TOM);
+    expect(L.materialize(d, TODAY, NOW)).toEqual({});
+  });
+  it('ending a series removes future occurrences but keeps finished ones', () => {
+    let d = base();
+    d = apply(d, L.createRecurring(d, { title: 'x', groupId: null, points: 2, weekdays: [5], time: null, reminderMin: null }, TODAY, NOW));
+    const first = L.dayTasks(d, TODAY)[0];
+    d = apply(d, L.setDone(d, first.id, true, TODAY, NOW));
+    d = apply(d, L.endRecurring(d, first.recurringId!, TODAY, NOW));
+    expect(L.alive(d).map((t) => t.id)).toEqual([first.id]);
+    expect(L.materialize(d, addDays(TODAY, 30), NOW)).toEqual({});
+  });
+  it('editing updates the series and later occurrences', () => {
+    let d = base();
+    d = apply(d, L.createRecurring(d, { title: 'old', groupId: null, points: 2, weekdays: [5], time: null, reminderMin: null }, TODAY, NOW));
+    const first = L.dayTasks(d, TODAY)[0];
+    d = apply(d, L.editTask(d, first.id, { title: 'new', groupId: null, points: 4, date: TODAY, time: '08:00', reminderMin: 0 }, NOW));
+    expect(L.alive(d).every((t) => t.title === 'new' && t.points === 4)).toBe(true);
+    expect(d.recurring[0].time).toBe('08:00');
+  });
+});
+
+describe('changing the days of a fixed item', () => {
+  it('drops open occurrences on removed days and fills new ones', () => {
+    let d = apply(base(), L.createRecurring(base(), { title: 'x', groupId: null, points: 2, weekdays: [0], time: null, reminderMin: null }, TODAY, NOW));
+    const id = d.recurring[0].id;
+    d = apply(d, L.setWeekdays(d, id, [1], TODAY, NOW));
+    const dates = L.alive(d).map((t) => t.date).sort();
+    expect(dates).toContain('2026-11-09');
+    expect(dates).not.toContain('2026-11-08');
+    expect(L.setWeekdays(d, id, [1], TODAY, NOW)).toEqual({});
+  });
+});
+
+describe('reminders', () => {
+  it('lists only future reminders of open dated tasks, soonest first', () => {
+    let { d } = add(base(), 'past', { time: '08:00', reminderMin: 0 });
+    const later = add(d, 'later', { date: TOM, time: '10:00', reminderMin: 30 });
+    const soon = add(later.d, 'soon', { time: '12:00', reminderMin: 0 });
+    d = soon.d;
+    ({ d } = add(d, 'none', { time: '13:00', reminderMin: null }));
+    const jobs = L.reminderJobs(d, NOW);
+    expect(jobs.map((j) => j.title)).toEqual(['soon', 'later']);
+    d = apply(d, L.setDone(d, soon.id, true, TODAY, NOW));
+    expect(L.reminderJobs(d, NOW).map((j) => j.title)).toEqual(['later']);
+  });
+});
+
+describe('backup', () => {
+  it('round-trips the data and the history', () => {
+    const { d, change } = add(base(), 'a');
+    const raw = JSON.stringify(L.makeBackup(d, change.events!, NOW));
+    const back = L.readBackup(raw);
+    expect(back.data.tasks).toEqual(d.tasks);
+    expect(back.events).toEqual(change.events);
+  });
+  it('rejects a file that is not a backup', () => {
+    expect(() => L.readBackup('{"a":1}')).toThrow();
+    expect(() => L.readBackup('not json')).toThrow();
+    expect(() => L.readBackup(JSON.stringify({ app: 'yomi', version: 1, events: [], data: { groups: [], recurring: [], dayLogs: [], tasks: [{ id: 'x', title: 'y', points: 9 }] } }))).toThrow();
+  });
+});
