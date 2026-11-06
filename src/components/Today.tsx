@@ -1,6 +1,6 @@
 // The "My day" screen. Lifting and dragging run on the UI thread, using the layer proven in the feasibility test.
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import {
   FlatList,
   GestureDetector,
@@ -29,7 +29,7 @@ import { addDays, parseIso, weekDays } from '../domain/dates';
 import { dayStats, dayTasks, levelInfo, poolTasks, streak as streakOf, totalPoints } from '../domain/logic';
 import type { Group, Task } from '../domain/types';
 import { t as tr } from '../i18n';
-import { buzzLift, dropOnDay, moveToTomorrow, openSheet, removeFromDay, setView, toggleDone, useApp } from '../store';
+import { buzzLift, dropOnDay, moveToTomorrow, openSheet, quickAdd, removeFromDay, setView, toggleDone, useApp } from '../store';
 import { RTL, font, useTheme, type Theme } from '../theme';
 import { ScoreHeader } from './ScoreHeader';
 import { Chip, Dot, Pips } from './ui';
@@ -238,6 +238,31 @@ function PoolRow({ task, index, d, onLift, onDrop }: { task: Task; index: number
   );
 }
 
+function QuickAdd({ t }: { t: Theme }) {
+  const [text, setText] = useState('');
+  const submit = () => {
+    quickAdd(text);
+    setText('');
+  };
+  return (
+    <View style={[s.quick, { backgroundColor: t.wash }]}>
+      <Text style={[s.quickPlus, { color: t.accent }]}>+</Text>
+      <TextInput
+        value={text}
+        onChangeText={setText}
+        onSubmitEditing={submit}
+        submitBehavior="submit"
+        returnKeyType="done"
+        maxLength={120}
+        placeholder={tr.quickAdd}
+        placeholderTextColor={t.mute}
+        style={[s.quickIn, { color: t.ink }]}
+        accessibilityLabel={tr.quickAdd}
+      />
+    </View>
+  );
+}
+
 function DayCell({ date, index, highlight, today, selected, stats, onPress, t }: {
   date: string; index: number; highlight: SharedValue<number>; today: string; selected: boolean; stats: { pct: number; total: number }; onPress: () => void; t: Theme;
 }) {
@@ -302,6 +327,12 @@ export default function TodayScreen() {
 
   const [ghost, setGhost] = useState<{ task: Task; w: number; h: number; from: Source } | null>(null);
   const [filter, setFilter] = useState<string>('all');
+  // A task added elsewhere must not be hidden by a filter left on from before.
+  const poolCount = useRef(pool.length);
+  useEffect(() => {
+    if (pool.length > poolCount.current) setFilter('all');
+    poolCount.current = pool.length;
+  }, [pool.length]);
   const [flies, setFlies] = useState<{ id: number; x: number; y: number; tx: number; ty: number; points: number }[]>([]);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [, setTick] = useState(0);
@@ -548,7 +579,8 @@ export default function TodayScreen() {
         </Pressable>
       </View>
 
-      <AnimatedScroll ref={scrollRef} onScroll={onScroll} scrollEventThrottle={16} style={s.flex} contentContainerStyle={{ paddingBottom: PEEK + 28 + (drawerOpen ? HALF : 0) }}>
+      <AnimatedScroll ref={scrollRef} onScroll={onScroll} scrollEventThrottle={16} style={s.flex} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: PEEK + 28 + (drawerOpen ? HALF : 0) }}>
+        <QuickAdd t={t} />
         <View ref={listRef} collapsable={false} style={{ minHeight: 120 }}>
           {rows.length ? (
             rows.map((task, index) => (
@@ -602,6 +634,8 @@ export default function TodayScreen() {
           data={items}
           keyExtractor={(x: PoolItem) => x.key}
           contentContainerStyle={{ paddingBottom: FULL - HALF + 24 }}
+          removeClippedSubviews={false}
+          extraData={items}
           initialNumToRender={14}
           windowSize={7}
           ListEmptyComponent={<Text style={[s.empty, { color: t.mute }]}>{pool.length ? tr.poolEmpty : tr.poolEmptyFirst}</Text>}
@@ -647,6 +681,9 @@ const s = StyleSheet.create({
   cellFill: { height: '100%' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 18, minHeight: 62 },
   rowMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 11, minHeight: 62 },
+  quick: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 14, marginTop: 8, marginBottom: 4, paddingHorizontal: 12, borderRadius: 12 },
+  quickPlus: { fontFamily: font.semibold, fontSize: 20, lineHeight: 24 },
+  quickIn: { flex: 1, fontFamily: font.regular, fontSize: 15.5, paddingVertical: 8 },
   under: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20 },
   underT: { fontFamily: font.bold, fontSize: 15 },
   check: { width: 30, height: 30, borderRadius: 15, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },

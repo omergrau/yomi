@@ -192,6 +192,41 @@ export function saveForm(id: string | null, form: TaskForm) {
   showToast(input.date ? tr.addedTo(dayWord(input.date)) : tr.addedPool);
 }
 
+/** The fastest path: a title alone puts a task on the day being viewed. */
+export function quickAdd(title: string) {
+  const clean = title.trim();
+  if (!clean) return;
+  const date = S.view >= S.today ? S.view : S.today;
+  commit(L.createTask(S.data, { title: clean, groupId: null, points: 3, date, time: null, reminderMin: null }, Date.now()));
+  buzz('light');
+}
+
+function editList(id: string, fn: Parameters<typeof L.editList>[2]) {
+  commit(L.editList(S.data, id, fn));
+}
+export function addList(title: string) {
+  const list = L.createList(S.data, title, Date.now());
+  commit({ lists: [list] });
+  return list.id;
+}
+export const renameList = (id: string, title: string) => editList(id, (l) => ({ ...l, title: title.trim() }));
+export const addListItem = (id: string, text: string) => editList(id, (l) => L.addItem(l, text, Date.now()));
+export const removeListItem = (id: string, item: string) => editList(id, (l) => L.removeItem(l, item));
+export const clearListDone = (id: string) => editList(id, L.clearDone);
+export function toggleListItem(id: string, item: string) {
+  editList(id, (l) => L.toggleItem(l, item));
+  buzz('select');
+}
+export function removeList(id: string) {
+  const list = S.data.lists.find((l) => l.id === id);
+  if (!list) return;
+  commit({ removeLists: [id] });
+  showToast(tr.listDeleted, () => {
+    commit({ lists: [list] });
+    hideToast();
+  });
+}
+
 export function endSeries(recurringId: string, fromDate: string) {
   const undo = commitUndoable(L.endRecurring(S.data, recurringId, fromDate, Date.now()));
   showToast(tr.seriesEnded, undo);

@@ -87,6 +87,16 @@ describe('phone database', () => {
     expect(repo.allEvents()).toHaveLength(1);
   });
 
+  it('keeps lists and their items', async () => {
+    const { openRepo } = await import('./repo.native');
+    const repo = openRepo();
+    const list = L.createList(repo.load(), 'קניות', NOW);
+    repo.apply({ lists: [{ ...list, items: [{ id: 'a', text: 'חלב', done: true }] }] });
+    expect(repo.load().lists[0].items).toEqual([{ id: 'a', text: 'חלב', done: true }]);
+    repo.apply({ removeLists: [list.id] });
+    expect(repo.load().lists).toEqual([]);
+  });
+
   it('removes history entries when an action is undone', async () => {
     const { openRepo } = await import('./repo.native');
     const repo = openRepo();

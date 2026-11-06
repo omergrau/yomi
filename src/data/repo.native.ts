@@ -1,5 +1,5 @@
 import { openDatabaseSync, type SQLiteDatabase } from 'expo-sqlite';
-import type { AppData, Change, DayLog, Group, Recurring, Task, TaskEvent } from '../domain/types';
+import type { AppData, Change, Checklist, DayLog, Group, Recurring, Task, TaskEvent } from '../domain/types';
 import type { Repo } from './repoTypes';
 
 // Each entry upgrades the database by one version. Never edit an entry after it has shipped; add a new one.
@@ -22,6 +22,9 @@ const MIGRATIONS = [
   );
   CREATE INDEX events_task ON events(task_id);
   CREATE TABLE meta (key TEXT PRIMARY KEY NOT NULL, value TEXT);
+  `,
+  `
+  CREATE TABLE lists (id TEXT PRIMARY KEY NOT NULL, title TEXT NOT NULL, sort INTEGER NOT NULL, created_at INTEGER NOT NULL, items TEXT NOT NULL);
   `,
 ];
 
@@ -48,6 +51,8 @@ const putRecurring = (db: SQLiteDatabase, r: Recurring) =>
     r.id, r.title, r.groupId, r.points, JSON.stringify(r.weekdays), r.time, r.reminderMin, r.startDate, r.endedAt,
   ]);
 const putLog = (db: SQLiteDatabase, l: DayLog) => db.runSync('INSERT OR REPLACE INTO day_logs (date,planned,done) VALUES (?,?,?)', [l.date, l.planned, l.done]);
+const putList = (db: SQLiteDatabase, l: Checklist) =>
+  db.runSync('INSERT OR REPLACE INTO lists (id,title,sort,created_at,items) VALUES (?,?,?,?,?)', [l.id, l.title, l.sort, l.createdAt, JSON.stringify(l.items)]);
 const putEvent = (db: SQLiteDatabase, e: TaskEvent) =>
   db.runSync('INSERT OR REPLACE INTO events (id,task_id,type,from_date,to_date,at) VALUES (?,?,?,?,?,?)', [e.id, e.taskId, e.type, e.fromDate, e.toDate, e.at]);
 const putMeta = (db: SQLiteDatabase, m: Partial<AppData['meta']>) => {
@@ -77,10 +82,13 @@ export function openRepo(): Repo {
         }),
       );
       const logs = db.getAllSync<DayLog>('SELECT date,planned,done FROM day_logs');
+      const lists = db.getAllSync<any>('SELECT * FROM lists ORDER BY sort').map(
+        (r): Checklist => ({ id: r.id, title: r.title, sort: r.sort, createdAt: r.created_at, items: JSON.parse(r.items) }),
+      );
       const meta = Object.fromEntries(db.getAllSync<{ key: string; value: string | null }>('SELECT key,value FROM meta').map((m) => [m.key, m.value]));
       return {
         tasks: Object.fromEntries(tasks.map((t) => [t.id, t])),
-        groups, recurring,
+        groups, recurring, lists,
         dayLogs: Object.fromEntries(logs.map((l) => [l.date, l])),
         meta: { lastDay: meta.lastDay ?? null, theme: (meta.theme as AppData['meta']['theme']) ?? 'system' },
       };
@@ -92,6 +100,8 @@ export function openRepo(): Repo {
         c.removeGroups?.forEach((id) => db.runSync('DELETE FROM groups_ WHERE id = ?', [id]));
         c.recurring?.forEach((r) => putRecurring(db, r));
         c.dayLogs?.forEach((l) => putLog(db, l));
+        c.lists?.forEach((l) => putList(db, l));
+        c.removeLists?.forEach((id) => db.runSync('DELETE FROM lists WHERE id = ?', [id]));
         c.events?.forEach((e) => putEvent(db, e));
         if (c.meta) putMeta(db, c.meta);
       });
@@ -103,11 +113,12 @@ export function openRepo(): Repo {
     allEvents: () => db.getAllSync<EventRow>('SELECT * FROM events ORDER BY at').map(toEvent),
     replaceAll(d, events) {
       db.withTransactionSync(() => {
-        db.execSync('DELETE FROM tasks; DELETE FROM groups_; DELETE FROM recurring; DELETE FROM day_logs; DELETE FROM events; DELETE FROM meta;');
+        db.execSync('DELETE FROM tasks; DELETE FROM groups_; DELETE FROM recurring; DELETE FROM day_logs; DELETE FROM events; DELETE FROM meta; DELETE FROM lists;');
         Object.values(d.tasks).forEach((t) => putTask(db, t));
         d.groups.forEach((g) => putGroup(db, g));
         d.recurring.forEach((r) => putRecurring(db, r));
         Object.values(d.dayLogs).forEach((l) => putLog(db, l));
+        d.lists.forEach((l) => putList(db, l));
         events.forEach((e) => putEvent(db, e));
         putMeta(db, d.meta);
       });

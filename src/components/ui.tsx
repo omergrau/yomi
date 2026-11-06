@@ -28,7 +28,7 @@ export function Chip({ label, on, color, onPress }: { label: string; on?: boolea
       onPress={onPress}
       accessibilityRole="button"
       accessibilityState={{ selected: !!on }}
-      style={[s.chip, { borderColor: on ? t.ink : t.line, backgroundColor: on ? t.ink : 'transparent' }]}
+      style={[s.chip, { backgroundColor: on ? t.ink : t.wash }]}
     >
       {color !== undefined ? <Dot color={color} /> : null}
       <Text style={[s.chipT, { color: on ? t.paper : t.ink }]}>{label}</Text>
@@ -76,7 +76,7 @@ export function ToastHost() {
 const s = StyleSheet.create({
   pips: { flexDirection: 'row', gap: 2.5, alignItems: 'center' },
   pip: { width: 4, height: 17 },
-  chip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderRadius: 999 },
+  chip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999 },
   chipT: { fontFamily: font.medium, fontSize: 14.5 },
   btn: { flex: 1, paddingVertical: 12, paddingHorizontal: 8, alignItems: 'center', borderWidth: 1.5, borderRadius: 10 },
   btnT: { fontFamily: font.bold, fontSize: 15.5 },

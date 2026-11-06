@@ -8,6 +8,7 @@ import { font, useTheme } from '../../theme';
 const ROUTES = {
   today: { href: '/', label: tr.nav.today },
   week: { href: '/week', label: tr.nav.week },
+  lists: { href: '/lists', label: tr.nav.lists },
   groups: { href: '/groups', label: tr.nav.groups },
   score: { href: '/score', label: tr.nav.score },
 } as const;
@@ -30,6 +31,9 @@ function Bar() {
     <View style={[s.bar, { backgroundColor: t.paper, borderTopColor: t.line }]}>
       <Item route="today" />
       <Item route="week" />
+      <Item route="lists" />
+      <Item route="groups" />
+      <Item route="score" />
       <View style={s.mid}>
         <Pressable
           style={[s.add, { backgroundColor: t.accent }]}
@@ -40,8 +44,6 @@ function Bar() {
           <Text style={[s.plus, { color: t.onAccent }]}>+</Text>
         </Pressable>
       </View>
-      <Item route="groups" />
-      <Item route="score" />
     </View>
   );
 }
@@ -49,9 +51,13 @@ function Bar() {
 export default function TabsLayout() {
   const t = useTheme();
   return (
-    <Tabs tabBar={() => <Bar />} screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: t.paper }, animation: 'none' }}>
+    <Tabs
+      tabBar={() => <Bar />}
+      screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: t.paper }, animation: 'none', freezeOnBlur: false }}
+    >
       <Tabs.Screen name="index" />
       <Tabs.Screen name="week" />
+      <Tabs.Screen name="lists" />
       <Tabs.Screen name="groups" />
       <Tabs.Screen name="score" />
     </Tabs>
@@ -61,8 +67,8 @@ export default function TabsLayout() {
 const s = StyleSheet.create({
   bar: { flexDirection: 'row', height: 60, alignItems: 'center', borderTopWidth: 1 },
   item: { flex: 1, height: '100%', alignItems: 'center', justifyContent: 'center' },
-  label: { fontSize: 14.5 },
-  mid: { width: 64, alignItems: 'center' },
+  label: { fontSize: 14 },
+  mid: { width: 62, alignItems: 'center' },
   add: { width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center' },
   plus: { fontFamily: font.light, fontSize: 32, lineHeight: 36 },
 });

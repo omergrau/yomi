@@ -43,6 +43,11 @@ export type TaskEvent = { id: string; taskId: string; type: EventType; fromDate:
 /** What a finished day looked like before unfinished tasks left it. */
 export type DayLog = { date: string; planned: number; done: number };
 
+export type ListItem = { id: string; text: string; done: boolean };
+
+/** A plain checklist. It earns no points and belongs to no day. */
+export type Checklist = { id: string; title: string; sort: number; createdAt: number; items: ListItem[] };
+
 export type Meta = { lastDay: string | null; theme: 'system' | 'light' | 'dark' };
 
 export type AppData = {
@@ -50,6 +55,7 @@ export type AppData = {
   groups: Group[];
   recurring: Recurring[];
   dayLogs: Record<string, DayLog>;
+  lists: Checklist[];
   meta: Meta;
 };
 
@@ -58,6 +64,8 @@ export type Change = {
   tasks?: Task[];
   groups?: Group[];
   removeGroups?: string[];
+  lists?: Checklist[];
+  removeLists?: string[];
   recurring?: Recurring[];
   dayLogs?: DayLog[];
   events?: TaskEvent[];

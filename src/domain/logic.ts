@@ -1,6 +1,6 @@
 // Every product rule lives here as a pure function, so it can be tested without a device.
 import { addDays, fireTime, weekDays, weekday } from './dates';
-import type { AppData, Backup, Change, DayLog, EventType, Group, Points, Recurring, Task, TaskEvent } from './types';
+import type { AppData, Backup, Change, Checklist, DayLog, EventType, Group, Points, Recurring, Task, TaskEvent } from './types';
 
 export const STREAK_GOAL = 0.7;
 export const POINTS_PER_LEVEL = 250;
@@ -279,8 +279,14 @@ export function applyChange(d: AppData, c: Change): AppData {
     const up = new Map(c.recurring.map((r) => [r.id, r]));
     recurring = [...recurring.map((r) => up.get(r.id) ?? r), ...c.recurring.filter((r) => !recurring.some((x) => x.id === r.id))];
   }
+  let lists = d.lists;
+  if (c.lists?.length) {
+    const up = new Map(c.lists.map((l) => [l.id, l]));
+    lists = [...lists.map((l) => up.get(l.id) ?? l), ...c.lists.filter((l) => !lists.some((x) => x.id === l.id))].sort((a, b) => a.sort - b.sort);
+  }
+  if (c.removeLists?.length) lists = lists.filter((l) => !c.removeLists!.includes(l.id));
   const dayLogs = c.dayLogs?.length ? { ...d.dayLogs, ...Object.fromEntries(c.dayLogs.map((l) => [l.date, l])) } : d.dayLogs;
-  return { tasks, groups, recurring, dayLogs, meta: c.meta ? { ...d.meta, ...c.meta } : d.meta };
+  return { tasks, groups, recurring, dayLogs, lists, meta: c.meta ? { ...d.meta, ...c.meta } : d.meta };
 }
 
 export const merge = (a: Change, b: Change): Change => {
@@ -290,6 +296,8 @@ export const merge = (a: Change, b: Change): Change => {
     tasks: [...byId.values()],
     groups: [...(a.groups ?? []), ...(b.groups ?? [])],
     removeGroups: [...(a.removeGroups ?? []), ...(b.removeGroups ?? [])],
+    lists: [...(a.lists ?? []), ...(b.lists ?? [])],
+    removeLists: [...(a.removeLists ?? []), ...(b.removeLists ?? [])],
     recurring: [...(a.recurring ?? []), ...(b.recurring ?? [])],
     dayLogs: [...(a.dayLogs ?? []), ...(b.dayLogs ?? [])],
     events: [...(a.events ?? []), ...(b.events ?? [])],
@@ -316,6 +324,24 @@ export function deleteGroup(d: AppData, id: string): Change {
     recurring: d.recurring.filter((r) => r.groupId === id).map((r) => ({ ...r, groupId: null })),
   };
 }
+
+export function createList(d: AppData, title: string, now: number): Checklist {
+  return { id: newId(now), title: title.trim(), sort: d.lists.reduce((m, l) => Math.max(m, l.sort), 0) + 1, createdAt: now, items: [] };
+}
+
+/** Applies one edit to one list and returns the change, or nothing if the list is gone. */
+export function editList(d: AppData, id: string, fn: (l: Checklist) => Checklist): Change {
+  const l = d.lists.find((x) => x.id === id);
+  return l ? { lists: [fn(l)] } : {};
+}
+
+export const addItem = (l: Checklist, text: string, now: number): Checklist => {
+  const clean = text.trim();
+  return clean ? { ...l, items: [...l.items, { id: newId(now), text: clean, done: false }] } : l;
+};
+export const toggleItem = (l: Checklist, id: string): Checklist => ({ ...l, items: l.items.map((x) => (x.id === id ? { ...x, done: !x.done } : x)) });
+export const removeItem = (l: Checklist, id: string): Checklist => ({ ...l, items: l.items.filter((x) => x.id !== id) });
+export const clearDone = (l: Checklist): Checklist => ({ ...l, items: l.items.filter((x) => !x.done) });
 
 export type ReminderJob = { id: string; title: string; fireAt: number; time: string };
 
@@ -352,10 +378,12 @@ export function readBackup(raw: string): { data: AppData; events: TaskEvent[] } 
       groups: b.data.groups,
       recurring: b.data.recurring,
       dayLogs: Object.fromEntries(b.data.dayLogs.map((l) => [l.date, l])),
+      // Backups made before lists existed simply have none.
+      lists: Array.isArray(b.data.lists) ? b.data.lists : [],
       meta: { lastDay: b.data.meta?.lastDay ?? null, theme: b.data.meta?.theme ?? 'system' },
     },
     events: b.events,
   };
 }
 
-export const emptyData = (): AppData => ({ tasks: {}, groups: [], recurring: [], dayLogs: {}, meta: { lastDay: null, theme: 'system' } });
+export const emptyData = (): AppData => ({ tasks: {}, groups: [], recurring: [], dayLogs: {}, lists: [], meta: { lastDay: null, theme: 'system' } });

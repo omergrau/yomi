@@ -242,6 +242,39 @@ describe('reminders', () => {
   });
 });
 
+describe('lists', () => {
+  it('adds, ticks, removes and clears items', () => {
+    let d = base();
+    const list = L.createList(d, ' Groceries ', NOW);
+    d = apply(d, { lists: [list] });
+    expect(d.lists[0].title).toBe('Groceries');
+    d = apply(d, L.editList(d, list.id, (l) => L.addItem(l, 'Milk', NOW)));
+    d = apply(d, L.editList(d, list.id, (l) => L.addItem(l, 'Eggs', NOW)));
+    d = apply(d, L.editList(d, list.id, (l) => L.addItem(l, '   ', NOW)));
+    expect(d.lists[0].items.map((x) => x.text)).toEqual(['Milk', 'Eggs']);
+    const milk = d.lists[0].items[0].id;
+    d = apply(d, L.editList(d, list.id, (l) => L.toggleItem(l, milk)));
+    expect(d.lists[0].items[0].done).toBe(true);
+    d = apply(d, L.editList(d, list.id, L.clearDone));
+    expect(d.lists[0].items.map((x) => x.text)).toEqual(['Eggs']);
+    d = apply(d, { removeLists: [list.id] });
+    expect(d.lists).toEqual([]);
+  });
+  it('earns no points and leaves the day untouched', () => {
+    let { d } = add(base(), 'a');
+    const list = L.createList(d, 'x', NOW);
+    d = apply(d, { lists: [{ ...list, items: [{ id: 'i', text: 'y', done: true }] }] });
+    expect(L.totalPoints(d)).toBe(0);
+    expect(L.dayStats(d, TODAY).count).toBe(1);
+  });
+  it('restores an older backup that has no lists', () => {
+    const { d, change } = add(base(), 'a');
+    const backup = L.makeBackup(d, change.events!, NOW) as any;
+    delete backup.data.lists;
+    expect(L.readBackup(JSON.stringify(backup)).data.lists).toEqual([]);
+  });
+});
+
 describe('backup', () => {
   it('round-trips the data and the history', () => {
     const { d, change } = add(base(), 'a');
