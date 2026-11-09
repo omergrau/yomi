@@ -53,6 +53,7 @@ describe('phone database', () => {
     const repo = openRepo();
     delete (globalThis as any).__seedDb;
     const d = repo.load();
+    expect(d.tasks.t1.noAuto).toBeUndefined();
     expect(d.tasks.t1).toMatchObject({ title: 'משימה ישנה', groupId: 'g1', points: 4, time: '10:00', deferrals: 2, doneAt: NOW });
     expect(d.groups[0].name).toBe('תואר');
     expect(d.recurring[0]).toMatchObject({ title: 'אימון', weekdays: [0, 2], time: '07:00', endTime: null, place: null });

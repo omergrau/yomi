@@ -18,6 +18,8 @@ export type Task = {
   occurrenceDate: string | null;
   createdAt: number;
   deletedAt: number | null;
+  /** Set when the person reopened a task that had completed itself at the end of its time. */
+  noAuto?: boolean;
 };
 
 export type Group = { id: string; name: string; color: number; sort: number };

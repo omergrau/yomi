@@ -83,6 +83,12 @@ function commitUndoable(change: Change): () => void {
 export function ensureDay() {
   const today = toIso(new Date());
   const changedDay = today !== S.today;
+  // Finished activities complete first, so the rollover never carries them forward.
+  const auto = L.autoComplete(S.data, Date.now());
+  if (auto.titles.length) {
+    commit(auto.change);
+    showToast(tr.autoDone(auto.titles, auto.points));
+  }
   const change = S.data.meta.lastDay === today ? {} : L.rollover(S.data, today, Date.now());
   const next = L.applyChange(S.data, change);
   const all = L.merge(change, L.materialize(next, today, Date.now()));

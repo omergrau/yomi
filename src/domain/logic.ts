@@ -1,5 +1,6 @@
 // Every product rule lives here as a pure function, so it can be tested without a device.
 import { addDays, fireTime, weekDays, weekday } from './dates';
+import { timeWindow } from './order';
 import type { AppData, Backup, Change, Checklist, DayLog, EventType, Group, Points, Recurring, Task, TaskEvent } from './types';
 
 export const STREAK_GOAL = 0.7;
@@ -147,7 +148,9 @@ export function setDone(d: AppData, id: string, done: boolean, today: string, no
   const t = d.tasks[id];
   if (!t) return {};
   const date = t.date ?? today;
-  const updated: Task = { ...t, date, doneAt: done ? now : null };
+  const series = t.recurringId ? d.recurring.find((r) => r.id === t.recurringId) : undefined;
+  const w = timeWindow(t, series);
+  const updated: Task = { ...t, date, doneAt: done ? now : null, noAuto: !done && !!w && w.end <= now ? true : t.noAuto };
   const change: Change = { tasks: [updated], events: [event(id, done ? 'completed' : 'reopened', t.date, date, now)] };
   // Correcting a past day keeps its log, and so the streak, accurate.
   const log = d.dayLogs[date];
@@ -157,6 +160,26 @@ export function setDone(d: AppData, id: string, done: boolean, today: string, no
     change.dayLogs = [{ ...log, done: doneNow, planned: Math.max(log.planned, doneNow) }];
   }
   return change;
+}
+
+/** Completes every timed task whose time has ended, unless the person reopened it before. */
+export function autoComplete(d: AppData, now: number): { change: Change; titles: string[]; points: number } {
+  const series = new Map(d.recurring.map((r) => [r.id, r]));
+  let cur = d;
+  let change: Change = {};
+  const titles: string[] = [];
+  let points = 0;
+  for (const t of alive(d)) {
+    if (t.doneAt || t.noAuto || !t.date || !t.time) continue;
+    const w = timeWindow(t, t.recurringId ? series.get(t.recurringId) : undefined);
+    if (!w || w.end > now) continue;
+    const c = setDone(cur, t.id, true, t.date, now);
+    cur = applyChange(cur, c);
+    change = merge(change, c);
+    titles.push(t.title);
+    points += t.points;
+  }
+  return { change, titles, points };
 }
 
 export function editTask(d: AppData, id: string, input: TaskInput, now: number): Change {

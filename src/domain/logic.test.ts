@@ -275,6 +275,32 @@ describe('urgency', () => {
   });
 });
 
+describe('activities whose time has passed', () => {
+  const at = (h: string) => fireTime(TODAY, h, 0);
+  it('complete themselves and earn their points', () => {
+    let { d, id } = add(base(), 'gym', { time: '08:00', points: 4 });
+    ({ d } = add(d, 'later', { time: '18:00' }));
+    ({ d } = add(d, 'untimed' ));
+    const r = L.autoComplete(d, at('09:00'));
+    d = apply(d, r.change);
+    expect(r.titles).toEqual(['gym']);
+    expect(d.tasks[id].doneAt).not.toBeNull();
+    expect(L.totalPoints(d)).toBe(4);
+  });
+  it('uses the end time of a timetable slot', () => {
+    let d = apply(base(), L.createRecurring(base(), { title: 'lecture', groupId: null, points: 2, weekdays: [5], time: '10:00', endTime: '12:00', reminderMin: null }, TODAY, NOW));
+    expect(L.autoComplete(d, at('11:00')).titles).toEqual([]);
+    expect(L.autoComplete(d, at('12:01')).titles).toEqual(['lecture']);
+  });
+  it('stay open once the person reopens them', () => {
+    let { d, id } = add(base(), 'gym', { time: '08:00' });
+    d = apply(d, L.autoComplete(d, at('09:00')).change);
+    d = apply(d, L.setDone(d, id, false, TODAY, at('09:05')));
+    expect(d.tasks[id].noAuto).toBe(true);
+    expect(L.autoComplete(d, at('10:00')).titles).toEqual([]);
+  });
+});
+
 describe('lists', () => {
   it('adds, ticks, removes and clears items', () => {
     let d = base();

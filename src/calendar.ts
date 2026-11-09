@@ -31,6 +31,24 @@ export async function listCalendars(): Promise<PhoneCalendar[]> {
     .map((x) => ({ id: x.id, title: x.title, color: x.color, account: x.source?.name ?? '' }));
 }
 
+/** Events between two days (the end day excluded), from every calendar the person has not hidden. */
+export async function eventsBetween(fromDate: string, toDate: string, hidden: string[]): Promise<PhoneEvent[]> {
+  const c = api();
+  if (!c) return [];
+  const cals = (await listCalendars()).filter((x) => !hidden.includes(x.id));
+  if (!cals.length) return [];
+  const colors = new Map(cals.map((x) => [x.id, x.color]));
+  const from = parseIso(fromDate);
+  from.setHours(0, 0, 0, 0);
+  const to = parseIso(toDate);
+  to.setHours(0, 0, 0, 0);
+  const events = await c.getEventsAsync(cals.map((x) => x.id), from, to);
+  return events.map((e) => ({
+    id: e.id, title: e.title || '', start: new Date(e.startDate).getTime(), end: new Date(e.endDate).getTime(), allDay: !!e.allDay,
+    location: e.location || null, calendarId: e.calendarId, color: colors.get(e.calendarId) ?? '',
+  }));
+}
+
 /** Events that touch the given day, from every calendar the person has not hidden. */
 export async function eventsFor(date: string, hidden: string[]): Promise<PhoneEvent[]> {
   const c = api();

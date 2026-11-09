@@ -33,6 +33,7 @@ import { t as tr } from '../i18n';
 import { buzzLift, dropOnDay, moveToTomorrow, openSheet, quickAdd, removeFromDay, setView, toggleDone, useApp } from '../store';
 import { RTL, font, useTheme, type Theme } from '../theme';
 import { Agenda } from './Agenda';
+import { orderOpen } from '../domain/order';
 import { ScoreHeader } from './ScoreHeader';
 import { TopicPicker } from './TopicPicker';
 import { Chip, Dot, Pips } from './ui';
@@ -458,9 +459,14 @@ export default function TodayScreen() {
   const layouts = useSharedValue<{ y: number; h: number }[]>([]);
   const cache = useRef<Record<string, { y: number; h: number }>>({});
   const idsRef = useRef<string[]>([]);
-  const openRows = useMemo(() => rows.filter((x) => !x.doneAt), [rows]);
-  const doneRows = useMemo(() => rows.filter((x) => x.doneAt), [rows]);
   const series = useMemo(() => new Map(data.recurring.map((r) => [r.id, r])), [data.recurring]);
+  const [clock, setClock] = useState(Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setClock(Date.now()), 30000);
+    return () => clearInterval(id);
+  }, []);
+  const openRows = useMemo(() => orderOpen(rows.filter((x) => !x.doneAt), view, today, clock, series).ordered, [rows, view, today, clock, series]);
+  const doneRows = useMemo(() => rows.filter((x) => x.doneAt), [rows]);
   idsRef.current = openRows.map((x) => x.id);
 
   const publish = useCallback(() => {
@@ -548,8 +554,9 @@ export default function TodayScreen() {
       // The drop slot counts open tasks only, so it is translated to a place among all of the day's tasks.
       const toFull = (k: number) => {
         const others = rows.filter((x) => x.id !== id);
+        const shown = openRows.filter((x) => x.id !== id);
+        if (k < shown.length) return others.indexOf(shown[k]);
         const open = others.filter((x) => !x.doneAt);
-        if (k < open.length) return others.indexOf(open[k]);
         return open.length ? others.indexOf(open[open.length - 1]) + 1 : 0;
       };
       const k = from === 'list' && insert > src ? insert - 1 : insert;
@@ -565,7 +572,7 @@ export default function TodayScreen() {
       // Forces the layout effect even when nothing changed, as in a cancelled drag.
       setTick((n) => n + 1);
     },
-    [rows, today, view, week],
+    [openRows, rows, today, view, week],
   );
 
   const onDrop = useCallback(() => {

@@ -1,6 +1,7 @@
 import { router } from 'expo-router';
 import React, { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Month } from '../../components/Month';
 import { Timetable } from '../../components/Timetable';
 import { Dot, Pips } from '../../components/ui';
 import { addDays, weekDays } from '../../domain/dates';
@@ -75,17 +76,17 @@ function WeekList() {
 
 export default function WeekScreen() {
   const t = useTheme();
-  const [mode, setMode] = useState<'week' | 'table'>('week');
+  const [mode, setMode] = useState<'week' | 'month' | 'table'>('week');
   return (
     <View style={[s.flex, { backgroundColor: t.paper }]}>
       <View style={[s.seg, { backgroundColor: t.wash }]}>
-        {(['week', 'table'] as const).map((m) => (
+        {(['week', 'month', 'table'] as const).map((m) => (
           <Pressable key={m} onPress={() => setMode(m)} style={[s.segBtn, mode === m ? { backgroundColor: t.paper } : null]} accessibilityRole="tab" accessibilityState={{ selected: mode === m }}>
-            <Text style={[s.segT, { color: mode === m ? t.ink : t.mute, fontFamily: mode === m ? font.semibold : font.regular }]}>{m === 'week' ? tr.weekTab : tr.timetableTab}</Text>
+            <Text style={[s.segT, { color: mode === m ? t.ink : t.mute, fontFamily: mode === m ? font.semibold : font.regular }]}>{m === 'week' ? tr.weekTab : m === 'month' ? tr.monthTab : tr.timetableTab}</Text>
           </Pressable>
         ))}
       </View>
-      {mode === 'week' ? <WeekList /> : <Timetable />}
+      {mode === 'week' ? <WeekList /> : mode === 'month' ? <Month /> : <Timetable />}
     </View>
   );
 }
