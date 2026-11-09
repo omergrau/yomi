@@ -4,6 +4,7 @@ import React, { useRef, useState } from 'react';
 import { KeyboardAvoidingView, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { addDays, parseIso, weekDays, weekday } from '../domain/dates';
+import { endLabel } from '../domain/order';
 import type { Points, Task, TaskEvent } from '../domain/types';
 import { fmtDate, t as tr } from '../i18n';
 import { ensureReminderPermission } from '../notifications';
@@ -21,12 +22,12 @@ const chunk = <T,>(xs: T[], n: number) => Array.from({ length: Math.ceil(xs.leng
 function initial(task: Task | null, weekdays: number[] | null, preset: { groupId?: string | null; date?: string | null }, view: string, today: string): TaskForm {
   if (task) {
     return {
-      title: task.title, groupId: task.groupId, points: task.points, date: task.date, time: task.time, reminderMin: task.reminderMin,
+      title: task.title, groupId: task.groupId, points: task.points, date: task.date, time: task.time, reminderMin: task.reminderMin, durationMin: task.durationMin ?? null,
       repeat: !!task.recurringId, weekdays: weekdays ?? [],
     };
   }
   const date = preset.date !== undefined ? preset.date : view >= today ? view : today;
-  return { title: '', groupId: preset.groupId ?? null, points: 3, date, time: null, reminderMin: null, repeat: false, weekdays: [] };
+  return { title: '', groupId: preset.groupId ?? null, points: 3, date, time: null, reminderMin: null, durationMin: null, repeat: false, weekdays: [] };
 }
 
 function Label({ text, t }: { text: string; t: Theme }) {
@@ -223,7 +224,7 @@ function SheetBody() {
                   </View>
                 </View>
                 <View style={s.row}>
-                  <Cell wide label={tr.noHour} on={!f.time} onPress={() => up({ time: null, reminderMin: null })} t={t} />
+                  <Cell wide label={tr.noHour} on={!f.time} onPress={() => up({ time: null, reminderMin: null, durationMin: null })} t={t} />
                   {hasNativePickers ? (
                     <Cell
                       wide
@@ -231,6 +232,33 @@ function SheetBody() {
                       onPress={async () => {
                         const picked = await pickTime(f.time);
                         if (picked) up({ time: picked, reminderMin: f.time ? f.reminderMin : 0 });
+                      }}
+                      t={t}
+                    />
+                  ) : null}
+                </View>
+              </View>
+            ) : null}
+
+            {f.time && !series ? (
+              <View>
+                <Label text={tr.until(endLabel({ ...(task ?? ({} as Task)), time: f.time, durationMin: f.durationMin ?? null } as Task))} t={t} />
+                <View style={s.row}>
+                  {tr.durations.map((o) => (
+                    <Cell key={o.l} wide label={o.l} on={(f.durationMin ?? null) === o.v} onPress={() => up({ durationMin: o.v })} t={t} />
+                  ))}
+                  {hasNativePickers ? (
+                    <Cell
+                      wide
+                      label={tr.otherEnd}
+                      on={!!f.durationMin && !tr.durations.some((o) => o.v === f.durationMin)}
+                      onPress={async () => {
+                        const picked = await pickTime(f.time);
+                        if (!picked || !f.time) return;
+                        const [sh, sm] = f.time.split(':').map(Number);
+                        const [eh, em] = picked.split(':').map(Number);
+                        const mins = eh * 60 + em - (sh * 60 + sm);
+                        if (mins > 0) up({ durationMin: mins });
                       }}
                       t={t}
                     />

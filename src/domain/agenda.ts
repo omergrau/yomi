@@ -1,5 +1,6 @@
 // Builds one time-ordered schedule for a day from the phone's calendar and the app's own timed items.
 import { fireTime } from './dates';
+import { endLabel } from './order';
 import type { Recurring, Task } from './types';
 
 export type AgendaSource = 'calendar' | 'timetable' | 'task';
@@ -31,7 +32,7 @@ export function buildAgenda(date: string, tasks: Task[], series: Map<string, Rec
     if (!t.time || t.date !== date) continue;
     const r = t.recurringId ? series.get(t.recurringId) : undefined;
     items.push({
-      key: `t-${t.id}`, title: t.title, start: fireTime(date, t.time, 0), end: r?.endTime ? fireTime(date, r.endTime, 0) : null, allDay: false,
+      key: `t-${t.id}`, title: t.title, start: fireTime(date, t.time, 0), end: endLabel(t, r) ? fireTime(date, endLabel(t, r) as string, 0) : null, allDay: false,
       place: r?.place ?? null, source: r ? 'timetable' : 'task', color: null, groupColor: t.groupId ? groupColors.get(t.groupId) ?? null : null,
       done: !!t.doneAt, taskId: t.id,
     });

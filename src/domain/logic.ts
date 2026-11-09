@@ -98,11 +98,11 @@ function renumberWithInsert(d: AppData, date: string, task: Task, at?: number): 
   return out;
 }
 
-export type TaskInput = { title: string; groupId: string | null; points: Points; date: string | null; time: string | null; reminderMin: number | null };
+export type TaskInput = { title: string; groupId: string | null; points: Points; date: string | null; time: string | null; reminderMin: number | null; durationMin?: number | null };
 
 export function createTask(d: AppData, input: TaskInput, now: number): Change {
   const task: Task = {
-    id: newId(now), ...input, reminderMin: input.time ? input.reminderMin : null,
+    id: newId(now), ...input, reminderMin: input.time ? input.reminderMin : null, durationMin: input.time ? input.durationMin ?? undefined : undefined,
     sort: 0, deferrals: 0, doneAt: null, recurringId: null, occurrenceDate: null, createdAt: now, deletedAt: null,
   };
   const tasks = input.date ? renumberWithInsert(d, input.date, task) : [{ ...task, sort: nextSort(d, null) }];
@@ -122,6 +122,7 @@ export function moveTask(d: AppData, id: string, to: string | null, now: number,
     ...t, date: to,
     time: keep ? t.time : null,
     reminderMin: keep ? t.reminderMin : null,
+    durationMin: keep ? t.durationMin : undefined,
     deferrals: t.deferrals + (later ? 1 : 0),
   };
   const tasks = to ? renumberWithInsert(d, to, moved, opts?.index) : [{ ...moved, sort: 0 }];
@@ -185,7 +186,10 @@ export function autoComplete(d: AppData, now: number): { change: Change; titles:
 export function editTask(d: AppData, id: string, input: TaskInput, now: number): Change {
   const t = d.tasks[id];
   if (!t) return {};
-  const base: Task = { ...t, title: input.title, groupId: input.groupId, points: input.points, time: input.time, reminderMin: input.time ? input.reminderMin : null };
+  const base: Task = {
+    ...t, title: input.title, groupId: input.groupId, points: input.points, time: input.time,
+    reminderMin: input.time ? input.reminderMin : null, durationMin: input.time ? input.durationMin ?? undefined : undefined,
+  };
   const withBase: AppData = { ...d, tasks: { ...d.tasks, [id]: base } };
   const move = input.date !== t.date ? moveTask(withBase, id, input.date, now, { keepTime: true }) : { tasks: [base] };
   const change: Change = { ...move };
@@ -292,7 +296,7 @@ export function rollover(d: AppData, today: string, now: number): Change {
   const rolling = past.filter((t) => !t.doneAt && !t.recurringId).sort((a, b) => (a.date! < b.date! ? -1 : a.date! > b.date! ? 1 : a.sort - b.sort));
   const present = dayTasks(d, today);
   const tasks: Task[] = [];
-  rolling.forEach((t, i) => tasks.push({ ...t, date: today, time: null, reminderMin: null, deferrals: t.deferrals + 1, sort: i + 1 }));
+  rolling.forEach((t, i) => tasks.push({ ...t, date: today, time: null, reminderMin: null, durationMin: undefined, deferrals: t.deferrals + 1, sort: i + 1 }));
   present.forEach((t, i) => {
     const sort = rolling.length + i + 1;
     if (t.sort !== sort) tasks.push({ ...t, sort });

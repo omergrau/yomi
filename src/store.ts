@@ -180,7 +180,10 @@ export function deleteTask(id: string) {
 
 export function saveForm(id: string | null, form: TaskForm) {
   const now = Date.now();
-  const input: L.TaskInput = { title: form.title.trim(), groupId: form.groupId, points: form.points as Points, date: form.date, time: form.time, reminderMin: form.reminderMin };
+  const input: L.TaskInput = {
+    title: form.title.trim(), groupId: form.groupId, points: form.points as Points, date: form.date, time: form.time,
+    reminderMin: form.reminderMin, durationMin: form.time ? form.durationMin ?? null : null,
+  };
   const existing = id ? S.data.tasks[id] : null;
   if (existing) {
     let change = L.editTask(S.data, existing.id, input, now);

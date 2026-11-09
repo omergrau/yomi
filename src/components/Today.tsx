@@ -33,7 +33,7 @@ import { t as tr } from '../i18n';
 import { buzzLift, dropOnDay, moveToTomorrow, openSheet, quickAdd, removeFromDay, setView, toggleDone, useApp } from '../store';
 import { RTL, font, useTheme, type Theme } from '../theme';
 import { Agenda } from './Agenda';
-import { orderOpen } from '../domain/order';
+import { endLabel, orderOpen } from '../domain/order';
 import { ScoreHeader } from './ScoreHeader';
 import { TopicPicker } from './TopicPicker';
 import { Chip, Dot, Pips } from './ui';
@@ -66,7 +66,7 @@ type Drag = {
 
 function metaLine(task: Task, groupName: string | undefined, showGroup: boolean, series?: Recurring) {
   const parts: string[] = [];
-  if (task.time) parts.push(series?.endTime ? `${task.time}–${series.endTime}` : task.time);
+  if (task.time) parts.push(endLabel(task, series) ? `${task.time}–${endLabel(task, series)}` : task.time);
   if (series?.place) parts.push(series.place);
   if (showGroup && groupName) parts.push(groupName);
   if (task.recurringId) parts.push(tr.fixed);

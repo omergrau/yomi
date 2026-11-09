@@ -301,6 +301,23 @@ describe('activities whose time has passed', () => {
   });
 });
 
+describe('one-off tasks with a length', () => {
+  const at = (h: string) => fireTime(TODAY, h, 0);
+  it('end at their own end time, and keep the length when the start moves', () => {
+    let { d, id } = add(base(), 'meeting', { time: '10:00', durationMin: 120 });
+    expect(L.autoComplete(d, at('11:30')).titles).toEqual([]);
+    expect(L.autoComplete(d, at('12:00')).titles).toEqual(['meeting']);
+    d = apply(d, L.editTask(d, id, { title: 'meeting', groupId: null, points: 3, date: TODAY, time: '14:00', reminderMin: 0, durationMin: 120 }, NOW));
+    expect(d.tasks[id]).toMatchObject({ time: '14:00', durationMin: 120 });
+  });
+  it('lose the length together with the time', () => {
+    let { d, id } = add(base(), 'meeting', { time: '10:00', durationMin: 60 });
+    d = apply(d, L.removeFromDay(d, id, NOW));
+    expect(d.tasks[id]).toMatchObject({ time: null });
+    expect(d.tasks[id].durationMin).toBeFalsy();
+  });
+});
+
 describe('lists', () => {
   it('adds, ticks, removes and clears items', () => {
     let d = base();

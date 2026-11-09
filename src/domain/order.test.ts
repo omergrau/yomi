@@ -20,6 +20,15 @@ const open = [
   task('low', { points: 1 }),
 ];
 
+describe('end labels', () => {
+  it('reads a task length or a timetable slot', async () => {
+    const { endLabel } = await import('./order');
+    expect(endLabel(task('m', { time: '10:00', durationMin: 90 }))).toBe('11:30');
+    expect(endLabel(task('l', { time: '10:00', recurringId: 'r' }), lecture)).toBe('12:00');
+    expect(endLabel(task('x', { time: '10:00' }))).toBeNull();
+  });
+});
+
 describe('order around the clock', () => {
   it('puts what is on now and what comes next first, by time', () => {
     const { ordered } = orderOpen(open, DAY, DAY, fireTime(DAY, '11:20', 0), series);

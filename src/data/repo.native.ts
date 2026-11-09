@@ -33,6 +33,9 @@ export const MIGRATIONS = [
   `
   ALTER TABLE tasks ADD COLUMN no_auto INTEGER;
   `,
+  `
+  ALTER TABLE tasks ADD COLUMN duration_min INTEGER;
+  `,
 ];
 
 function migrate(db: SQLiteDatabase) {
@@ -48,9 +51,9 @@ function migrate(db: SQLiteDatabase) {
 
 const putTask = (db: SQLiteDatabase, t: Task) =>
   db.runSync(
-    `INSERT OR REPLACE INTO tasks (id,title,group_id,points,date,sort,time,reminder_min,deferrals,done_at,recurring_id,occurrence_date,created_at,deleted_at,no_auto)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-    [t.id, t.title, t.groupId, t.points, t.date, t.sort, t.time, t.reminderMin, t.deferrals, t.doneAt, t.recurringId, t.occurrenceDate, t.createdAt, t.deletedAt, t.noAuto ? 1 : 0],
+    `INSERT OR REPLACE INTO tasks (id,title,group_id,points,date,sort,time,reminder_min,deferrals,done_at,recurring_id,occurrence_date,created_at,deleted_at,no_auto,duration_min)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+    [t.id, t.title, t.groupId, t.points, t.date, t.sort, t.time, t.reminderMin, t.deferrals, t.doneAt, t.recurringId, t.occurrenceDate, t.createdAt, t.deletedAt, t.noAuto ? 1 : 0, t.durationMin ?? null],
   );
 const putGroup = (db: SQLiteDatabase, g: Group) => db.runSync('INSERT OR REPLACE INTO groups_ (id,name,color,sort) VALUES (?,?,?,?)', [g.id, g.name, g.color, g.sort]);
 const putRecurring = (db: SQLiteDatabase, r: Recurring) =>
@@ -82,6 +85,7 @@ export function openRepo(): Repo {
           id: r.id, title: r.title, groupId: r.group_id, points: r.points, date: r.date, sort: r.sort, time: r.time, reminderMin: r.reminder_min,
           deferrals: r.deferrals, doneAt: r.done_at, recurringId: r.recurring_id, occurrenceDate: r.occurrence_date, createdAt: r.created_at, deletedAt: r.deleted_at,
           ...(r.no_auto ? { noAuto: true } : {}),
+          ...(r.duration_min ? { durationMin: r.duration_min } : {}),
         }),
       );
       const groups = db.getAllSync<Group>('SELECT id,name,color,sort FROM groups_ ORDER BY sort');

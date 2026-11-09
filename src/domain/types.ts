@@ -18,6 +18,8 @@ export type Task = {
   occurrenceDate: string | null;
   createdAt: number;
   deletedAt: number | null;
+  /** How long a timed task lasts, in minutes. Absent means a short, open-ended slot. */
+  durationMin?: number | null;
   /** Set when the person reopened a task that had completed itself at the end of its time. */
   noAuto?: boolean;
 };

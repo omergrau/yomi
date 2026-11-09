@@ -7,6 +7,11 @@ const he = {
   months: ['בינואר', 'בפברואר', 'במרץ', 'באפריל', 'במאי', 'ביוני', 'ביולי', 'באוגוסט', 'בספטמבר', 'באוקטובר', 'בנובמבר', 'בדצמבר'],
   nav: { today: 'היום', week: 'שבוע', lists: 'רשימות', groups: 'קבוצות', score: 'ניקוד', add: 'הוספת משימה' },
   listsTitle: 'רשימות',
+  until: (end: string | null) => (end ? `עד ${end}` : 'עד'),
+  durations: [
+    { v: null, l: 'בלי' }, { v: 30, l: '30 דק׳' }, { v: 60, l: 'שעה' }, { v: 90, l: 'שעה וחצי' }, { v: 120, l: 'שעתיים' }, { v: 180, l: '3 שעות' },
+  ] as { v: number | null; l: string }[],
+  otherEnd: 'שעת סיום אחרת',
   autoDone: (titles: string[], pts: number) => (titles.length === 1 ? `"${titles[0]}" הסתיימה וסומנה כבוצעה. +${pts}` : `${titles.length} פעילויות הסתיימו וסומנו כבוצעו. +${pts}`),
   minutesLeft: (n: number) => (n >= 60 ? `נשארו ${Math.floor(n / 60)}:${String(n % 60).padStart(2, '0')} שעות` : `נשארו ${n} דקות`),
   agendaFirst: 'ראשון ביום',

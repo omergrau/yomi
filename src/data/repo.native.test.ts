@@ -118,6 +118,14 @@ describe('phone database', () => {
     expect(repo.allEvents()).toHaveLength(1);
   });
 
+  it('keeps the length of a one-off task', async () => {
+    const { openRepo } = await import('./repo.native');
+    const repo = openRepo();
+    const a = L.createTask(repo.load(), { title: 'meeting', groupId: null, points: 2, date: TODAY, time: '10:00', reminderMin: 0, durationMin: 90 }, NOW);
+    repo.apply(a);
+    expect(repo.load().tasks[a.tasks![0].id].durationMin).toBe(90);
+  });
+
   it('keeps the hidden calendars setting', async () => {
     const { openRepo } = await import('./repo.native');
     const repo = openRepo();
