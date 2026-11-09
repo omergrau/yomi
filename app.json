@@ -68,7 +68,7 @@
       "forcesRTL": true,
       "router": {
         "asyncRoutes": {
-          "web": true
+          "web": false
         }
       },
       "eas": {
