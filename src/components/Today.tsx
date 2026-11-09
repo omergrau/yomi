@@ -831,7 +831,7 @@ const s = StyleSheet.create({
   metaT: { flexShrink: 1, fontFamily: font.regular, fontSize: 12.5, fontVariant: ['tabular-nums', 'lining-nums'] },
   empty: { fontFamily: font.regular, fontSize: 15.5, textAlign: 'center', paddingHorizontal: 28, paddingVertical: 32 },
   drawer: { position: 'absolute', start: 0, end: 0, bottom: 0, borderTopStartRadius: 16, borderTopEndRadius: 16, borderTopWidth: 1, elevation: 10, shadowOpacity: 0.09, shadowRadius: 14, shadowOffset: { width: 0, height: -5 } },
-  dhead: { height: 58, paddingHorizontal: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  dhead: { height: 58, paddingHorizontal: 18, paddingTop: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
   dheadRow: { flexDirection: 'row', alignItems: 'baseline', gap: 7 },
   dtitle: { fontFamily: font.serif, fontSize: 19 },
   dcount: { fontFamily: font.regular, fontSize: 14.5, fontVariant: ['lining-nums'] },
