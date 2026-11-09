@@ -63,6 +63,28 @@ describe('assistant actions', () => {
     expect(r.my_tasks_without_a_day[0].title).toBe('someday');
   });
 
+  it('creates a shopping list, ticks items while shopping, then clears and deletes it', () => {
+    let r = run(L.emptyData(), 'create_list', { title: 'סופר', items: ['חלב', 'ביצים', 'לחם'] });
+    let d = r.data;
+    const list = d.lists[0];
+    expect(list.items.map((x) => x.text)).toEqual(['חלב', 'ביצים', 'לחם']);
+    const milk = list.items[0].id;
+    d = run(d, 'update_list', { list_id: list.id, title: null, add: ['גבינה'], check: [milk], uncheck: [], remove: [], clear_checked: false }).data;
+    expect(d.lists[0].items.map((x) => [x.text, x.done])).toEqual([['חלב', true], ['ביצים', false], ['לחם', false], ['גבינה', false]]);
+    d = run(d, 'update_list', { list_id: list.id, title: 'קניות', add: [], check: [], uncheck: [], remove: [], clear_checked: true }).data;
+    expect(d.lists[0]).toMatchObject({ title: 'קניות' });
+    expect(d.lists[0].items.map((x) => x.text)).toEqual(['ביצים', 'לחם', 'גבינה']);
+    const lists = runAction('get_lists', ctx(d), {}).result as any;
+    expect(lists.lists[0].items[0]).toMatchObject({ text: 'ביצים', checked: false });
+    d = run(d, 'delete_list', { list_id: list.id }).data;
+    expect(d.lists).toEqual([]);
+  });
+
+  it('refuses list items it does not know', () => {
+    const d = run(L.emptyData(), 'create_list', { title: 'x', items: ['a'] }).data;
+    expect(() => runAction('update_list', ctx(d), { list_id: d.lists[0].id, title: null, add: [], check: ['nope'], uncheck: [], remove: [], clear_checked: false })).toThrow();
+  });
+
   it('refuses bad input instead of guessing', () => {
     expect(() => runAction('add_task', ctx(L.emptyData()), { title: 'x', date: 'tomorrow', start: null, duration_min: null, urgency: 3, topic: null, reminder_min: null })).toThrow();
     expect(() => runAction('complete_task', ctx(L.emptyData()), { task_id: 'nope', done: true })).toThrow();

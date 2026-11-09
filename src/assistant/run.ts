@@ -103,6 +103,44 @@ const TOOLS: Anthropic.Beta.BetaTool[] = [
       },
     },
   },
+  {
+    name: 'get_lists',
+    description: 'Read every checklist (such as shopping lists) with its items, their ids and whether they are ticked.',
+    strict: true,
+    input_schema: { type: 'object', additionalProperties: false, required: [], properties: {} },
+  },
+  {
+    name: 'create_list',
+    description: 'Create a new checklist with a title and its items.',
+    strict: true,
+    input_schema: {
+      type: 'object', additionalProperties: false, required: ['title', 'items'],
+      properties: { title: { type: 'string' }, items: { type: 'array', items: { type: 'string' }, description: 'One short Hebrew item each' } },
+    },
+  },
+  {
+    name: 'update_list',
+    description: 'Change one checklist: rename it, add items, tick or untick items, remove items, or clear every ticked item. Use item ids from get_lists.',
+    strict: true,
+    input_schema: {
+      type: 'object', additionalProperties: false, required: ['list_id', 'title', 'add', 'check', 'uncheck', 'remove', 'clear_checked'],
+      properties: {
+        list_id: { type: 'string' },
+        title: nullable('string', 'New title or null'),
+        add: { type: 'array', items: { type: 'string' } },
+        check: { type: 'array', items: { type: 'string' }, description: 'Item ids to tick' },
+        uncheck: { type: 'array', items: { type: 'string' }, description: 'Item ids to untick' },
+        remove: { type: 'array', items: { type: 'string' }, description: 'Item ids to remove' },
+        clear_checked: { type: 'boolean', description: 'Remove every ticked item' },
+      },
+    },
+  },
+  {
+    name: 'delete_list',
+    description: 'Delete a whole checklist. Do it when the person asks, for example after shopping.',
+    strict: true,
+    input_schema: { type: 'object', additionalProperties: false, required: ['list_id'], properties: { list_id: { type: 'string' } } },
+  },
 ];
 
 const SYSTEM = `You are the planning assistant inside "עוזר אישי" (Personal Assistant), a personal Hebrew day planner on the person's phone.
@@ -112,6 +150,7 @@ How the app works:
 - Tasks belong to a day or wait in "my tasks" (המשימות שלי) without a day. Each has urgency 1-5, which is also the points it earns when done.
 - Timed tasks can have a length; when their time ends they complete themselves. Weekly items form the timetable (מערכת שעות).
 - Topics (נושאים) group tasks, for example תואר, עבודה, ספורט.
+- Checklists (רשימות) are plain lists with items to tick, such as a shopping list. They have no dates or points. Read them with get_lists before changing one, and match a list by its title.
 - The week starts on Sunday. The person is in Israel.
 
 How to work:

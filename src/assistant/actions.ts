@@ -187,6 +187,55 @@ export function findFreeTime(ctx: Ctx, input: { from_date: string; to_date: stri
   return { result: { free: slots.slice(0, 20), searched_between: `${earliest}-${latest}` } };
 }
 
+function listView(l: AppData['lists'][number]) {
+  return { list_id: l.id, title: l.title, items: l.items.map((x) => ({ item_id: x.id, text: x.text, checked: x.done })) };
+}
+
+export function getLists(ctx: Ctx): ActionResult {
+  return { result: { lists: ctx.data.lists.map(listView) } };
+}
+
+export function createList(ctx: Ctx, input: { title: string; items: string[] }): ActionResult {
+  need(!!input.title?.trim(), 'title is required');
+  let list = L.createList(ctx.data, input.title, ctx.now);
+  for (const text of input.items ?? []) list = L.addItem(list, text, ctx.now);
+  return { change: { lists: [list] }, result: { created: listView(list) }, summary: `נוצרה רשימה: ${list.title} (${list.items.length})` };
+}
+
+export type UpdateListInput = {
+  list_id: string; title: string | null; add: string[]; check: string[]; uncheck: string[]; remove: string[]; clear_checked: boolean;
+};
+
+/** One call can rename a list, add items, tick or untick them, remove some, and clear what is ticked. */
+export function updateList(ctx: Ctx, input: UpdateListInput): ActionResult {
+  let list = ctx.data.lists.find((l) => l.id === input.list_id);
+  need(!!list, 'no such list; call get_lists for ids');
+  list = list!;
+  const known = new Set(list.items.map((x) => x.id));
+  const unknown = [...(input.check ?? []), ...(input.uncheck ?? []), ...(input.remove ?? [])].filter((id) => !known.has(id));
+  need(!unknown.length, `unknown item ids: ${unknown.join(', ')}`);
+  if (input.title?.trim()) list = { ...list, title: input.title.trim() };
+  for (const text of input.add ?? []) list = L.addItem(list, text, ctx.now);
+  const check = new Set(input.check ?? []);
+  const uncheck = new Set(input.uncheck ?? []);
+  list = { ...list, items: list.items.map((x) => (check.has(x.id) ? { ...x, done: true } : uncheck.has(x.id) ? { ...x, done: false } : x)) };
+  const remove = new Set(input.remove ?? []);
+  list = { ...list, items: list.items.filter((x) => !remove.has(x.id)) };
+  if (input.clear_checked) list = L.clearDone(list);
+  const parts = [
+    input.add?.length ? `נוספו ${input.add.length}` : '',
+    check.size ? `סומנו ${check.size}` : '',
+    remove.size || input.clear_checked ? 'הוסרו פריטים' : '',
+  ].filter(Boolean);
+  return { change: { lists: [list] }, result: { updated: listView(list) }, summary: `${list.title}: ${parts.join(', ') || 'עודכנה'}` };
+}
+
+export function deleteList(ctx: Ctx, input: { list_id: string }): ActionResult {
+  const list = ctx.data.lists.find((l) => l.id === input.list_id);
+  need(!!list, 'no such list; call get_lists for ids');
+  return { change: { removeLists: [list!.id] }, result: { deleted: list!.id }, summary: `נמחקה רשימה: ${list!.title}` };
+}
+
 export const ACTIONS = {
   get_schedule: getSchedule,
   add_task: addTask,
@@ -195,6 +244,10 @@ export const ACTIONS = {
   delete_task: deleteTask,
   add_weekly: addWeekly,
   find_free_time: findFreeTime,
+  get_lists: getLists,
+  create_list: createList,
+  update_list: updateList,
+  delete_list: deleteList,
 } as const;
 
 export type ActionName = keyof typeof ACTIONS;

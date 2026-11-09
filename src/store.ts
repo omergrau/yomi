@@ -6,7 +6,7 @@ import { openRepo } from './data/repo';
 import type { Repo } from './data/repoTypes';
 import { addDays, toIso } from './domain/dates';
 import * as L from './domain/logic';
-import type { AppData, Change, Points, Recurring, Task, TaskEvent } from './domain/types';
+import type { AppData, Change, Checklist, Points, Recurring, Task, TaskEvent } from './domain/types';
 import { fmtDay, t as tr } from './i18n';
 import { syncReminders } from './notifications';
 
@@ -73,8 +73,15 @@ function commitUndoable(change: Change): () => void {
     const tasks: Task[] = (change.tasks ?? []).map((x) => before.tasks[x.id] ?? { ...x, deletedAt: Date.now() });
     const recurring = (change.recurring ?? []).map((r) => before.recurring.find((x) => x.id === r.id)).filter(Boolean) as Recurring[];
     const dayLogs = (change.dayLogs ?? []).map((l) => before.dayLogs[l.date]).filter(Boolean);
+    // A weekly item that did not exist before is ended, so it stops filling in new weeks.
+    const added = (change.recurring ?? []).filter((r) => !before.recurring.some((x) => x.id === r.id)).map((r) => ({ ...r, endedAt: Date.now() }));
+    const lists = [
+      ...(change.lists ?? []).map((l) => before.lists.find((x) => x.id === l.id)).filter(Boolean),
+      ...(change.removeLists ?? []).map((id) => before.lists.find((x) => x.id === id)).filter(Boolean),
+    ] as Checklist[];
+    const removeLists = (change.lists ?? []).filter((l) => !before.lists.some((x) => x.id === l.id)).map((l) => l.id);
     repo.removeEvents((change.events ?? []).map((e) => e.id));
-    commit({ tasks, recurring, dayLogs });
+    commit({ tasks, recurring: [...recurring, ...added], dayLogs, lists, removeLists });
     hideToast();
   };
 }
