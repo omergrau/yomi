@@ -14,6 +14,7 @@ export type SheetState = { id: string | null; groupId?: string | null; date?: st
 export type Toast = { key: number; message: string; undo?: () => void };
 
 export type TaskForm = L.TaskInput & { repeat: boolean; weekdays: number[] };
+export type SlotForm = { title: string; weekdays: number[]; time: string | null; endTime: string | null; place: string; reminderMin: number | null; groupId: string | null; points: Points };
 
 type Snapshot = {
   data: AppData;
@@ -225,6 +226,17 @@ export function removeList(id: string) {
     commit({ lists: [list] });
     hideToast();
   });
+}
+
+/** Saves a timetable slot as a recurring item, so it appears in its days and reminds like any task. */
+export function saveSlot(id: string | null, f: SlotForm) {
+  const input = {
+    title: f.title.trim(), groupId: f.groupId, points: f.points, weekdays: [...f.weekdays].sort(), time: f.time,
+    endTime: f.endTime, place: f.place.trim() || null, reminderMin: f.time ? f.reminderMin : null,
+  };
+  const now = Date.now();
+  commit(id ? L.editRecurring(S.data, id, input, S.today, now) : L.createRecurring(S.data, input, S.today, now));
+  showToast(tr.slotSaved);
 }
 
 export function endSeries(recurringId: string, fromDate: string) {

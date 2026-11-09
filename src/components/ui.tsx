@@ -74,8 +74,8 @@ export function ToastHost() {
 }
 
 const s = StyleSheet.create({
-  pips: { flexDirection: 'row', gap: 2.5, alignItems: 'center' },
-  pip: { width: 4, height: 17 },
+  pips: { flexDirection: 'row', gap: 2, alignItems: 'center' },
+  pip: { width: 3.5, height: 13 },
   chip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999 },
   chipT: { fontFamily: font.medium, fontSize: 14.5 },
   btn: { flex: 1, paddingVertical: 12, paddingHorizontal: 8, alignItems: 'center', borderWidth: 1.5, borderRadius: 10 },

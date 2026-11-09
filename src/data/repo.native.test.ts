@@ -52,7 +52,7 @@ describe('phone database', () => {
     d = L.applyChange(d, add);
     const id = add.tasks![0].id;
 
-    const fixed = L.createRecurring(d, { title: 'gym', groupId, points: 2, weekdays: [0, 5], time: '07:00', reminderMin: 0 }, TODAY, NOW);
+    const fixed = L.createRecurring(d, { title: 'gym', groupId, points: 2, weekdays: [0, 5], time: '07:00', endTime: '08:00', place: 'Gym', reminderMin: 0 }, TODAY, NOW);
     repo.apply(fixed);
     d = L.applyChange(d, fixed);
 

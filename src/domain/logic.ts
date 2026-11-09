@@ -184,6 +184,20 @@ export function createRecurring(d: AppData, input: RecurringInput, today: string
   return { recurring: [r], ...materialize(next, today, now) };
 }
 
+/** Edits a series and its open occurrences from today on. Past and finished occurrences keep what they were. */
+export function editRecurring(d: AppData, id: string, input: RecurringInput, today: string, now: number): Change {
+  const r = d.recurring.find((x) => x.id === id);
+  if (!r) return {};
+  const reminderMin = input.time ? input.reminderMin : null;
+  const updated: Recurring = { ...r, ...input, weekdays: r.weekdays, reminderMin };
+  const future = alive(d).filter((t) => t.recurringId === id && !t.doneAt && t.date && t.date >= today);
+  const base: Change = {
+    recurring: [updated],
+    tasks: future.map((t) => ({ ...t, title: input.title, groupId: input.groupId, points: input.points, time: input.time, reminderMin })),
+  };
+  return merge(base, setWeekdays(applyChange(d, base), id, input.weekdays, today, now));
+}
+
 /** Ends a series from the given day on. Past and finished occurrences stay in the history. */
 export function endRecurring(d: AppData, recurringId: string, fromDate: string, now: number): Change {
   const r = d.recurring.find((x) => x.id === recurringId);

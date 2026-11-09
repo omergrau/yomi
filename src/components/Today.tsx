@@ -10,6 +10,7 @@ import {
   useTapGesture,
 } from 'react-native-gesture-handler';
 import Animated, {
+  LinearTransition,
   interpolateColor,
   measure,
   runOnUI,
@@ -27,7 +28,7 @@ import Animated, {
 import { scheduleOnRN } from 'react-native-worklets';
 import { addDays, parseIso, weekDays } from '../domain/dates';
 import { dayStats, dayTasks, levelInfo, poolTasks, streak as streakOf, totalPoints } from '../domain/logic';
-import type { Group, Task } from '../domain/types';
+import type { Group, Recurring, Task } from '../domain/types';
 import { t as tr } from '../i18n';
 import { buzzLift, dropOnDay, moveToTomorrow, openSheet, quickAdd, removeFromDay, setView, toggleDone, useApp } from '../store';
 import { RTL, font, useTheme, type Theme } from '../theme';
@@ -60,9 +61,10 @@ type Drag = {
   rootRef: AnimatedRef<View>;
 };
 
-function metaLine(task: Task, groupName: string | undefined, showGroup: boolean) {
+function metaLine(task: Task, groupName: string | undefined, showGroup: boolean, series?: Recurring) {
   const parts: string[] = [];
-  if (task.time) parts.push(task.time);
+  if (task.time) parts.push(series?.endTime ? `${task.time}–${series.endTime}` : task.time);
+  if (series?.place) parts.push(series.place);
   if (showGroup && groupName) parts.push(groupName);
   if (task.recurringId) parts.push(tr.fixed);
   if (task.reminderMin !== null) parts.push(tr.reminder);
@@ -71,9 +73,9 @@ function metaLine(task: Task, groupName: string | undefined, showGroup: boolean)
   return parts.join(' · ');
 }
 
-function RowBody({ task, group, showGroup, t }: { task: Task; group?: Group; showGroup: boolean; t: Theme }) {
+function RowBody({ task, group, showGroup, series, t }: { task: Task; group?: Group; showGroup: boolean; series?: Recurring; t: Theme }) {
   const done = !!task.doneAt;
-  const meta = metaLine(task, group?.name, showGroup);
+  const meta = metaLine(task, group?.name, showGroup, series);
   return (
     <>
       <View style={s.body}>
@@ -132,9 +134,9 @@ function useLiftGesture(task: Task, zone: Source, index: number, d: Drag, ref: A
 }
 
 const DayRow = React.memo(function DayRow({
-  task, group, index, d, width, onLift, onDrop, onToggle,
+  task, group, series, index, d, width, onLift, onDrop, onToggle,
 }: {
-  task: Task; group?: Group; index: number; d: Drag; width: number;
+  task: Task; group?: Group; series?: Recurring; index: number; d: Drag; width: number;
   onLift: (x: Task, w: number, h: number, from: Source) => void; onDrop: () => void; onToggle: (x: Task, px: number, py: number) => void;
 }) {
   const t = useTheme();
@@ -208,13 +210,35 @@ const DayRow = React.memo(function DayRow({
         </Pressable>
         <GestureDetector gesture={gesture}>
           <Animated.View style={s.rowMain} accessible accessibilityRole="button" accessibilityLabel={task.title} accessibilityHint={tr.poolHint}>
-            <RowBody task={task} group={group} showGroup t={t} />
+            <RowBody task={task} group={group} series={series} showGroup t={t} />
           </Animated.View>
         </GestureDetector>
       </Animated.View>
     </Animated.View>
   );
 });
+
+/** A finished task: it can be reopened or opened, but it is no longer dragged. */
+function DoneRow({ task, group, series, onToggle }: { task: Task; group?: Group; series?: Recurring; onToggle: (x: Task, px: number, py: number) => void }) {
+  const t = useTheme();
+  return (
+    <View style={[s.row, { backgroundColor: t.paper, borderBottomColor: t.line, borderBottomWidth: 1 }]}>
+      <Pressable
+        onPress={(e) => onToggle(task, e.nativeEvent.pageX, e.nativeEvent.pageY)}
+        hitSlop={10}
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked: true }}
+        accessibilityLabel={tr.markDone(task.title)}
+        style={[s.check, { borderColor: t.accent, backgroundColor: t.accent }]}
+      >
+        <Text style={[s.tick, { color: t.onAccent }]}>✓</Text>
+      </Pressable>
+      <Pressable style={s.rowMain} onPress={() => openSheet({ id: task.id })} accessibilityRole="button" accessibilityLabel={task.title}>
+        <RowBody task={task} group={group} series={series} showGroup t={t} />
+      </Pressable>
+    </View>
+  );
+}
 
 function PoolRow({ task, index, d, onLift, onDrop }: { task: Task; index: number; d: Drag; onLift: (x: Task, w: number, h: number, from: Source) => void; onDrop: () => void }) {
   const t = useTheme();
@@ -350,7 +374,7 @@ export default function TodayScreen() {
     srcIndex: useSharedValue(0),
     zone: useSharedValue<Zone>('none'),
     insert: useSharedValue(0),
-    rowH: useSharedValue(62),
+    rowH: useSharedValue(48),
     fingerX: useSharedValue(0),
     fingerY: useSharedValue(0),
     calibY: useSharedValue(0),
@@ -367,12 +391,15 @@ export default function TodayScreen() {
   const layouts = useSharedValue<{ y: number; h: number }[]>([]);
   const cache = useRef<Record<string, { y: number; h: number }>>({});
   const idsRef = useRef<string[]>([]);
-  idsRef.current = rows.map((x) => x.id);
+  const openRows = useMemo(() => rows.filter((x) => !x.doneAt), [rows]);
+  const doneRows = useMemo(() => rows.filter((x) => x.doneAt), [rows]);
+  const series = useMemo(() => new Map(data.recurring.map((r) => [r.id, r])), [data.recurring]);
+  idsRef.current = openRows.map((x) => x.id);
 
   const publish = useCallback(() => {
-    layouts.value = idsRef.current.map((id) => cache.current[id] ?? { y: 0, h: 62 });
+    layouts.value = idsRef.current.map((id) => cache.current[id] ?? { y: 0, h: 48 });
   }, [layouts]);
-  useEffect(publish, [rows, publish]);
+  useEffect(publish, [openRows, publish]);
 
   useFrameCallback(() => {
     'worklet';
@@ -451,11 +478,16 @@ export default function TodayScreen() {
 
   const finishDrop = useCallback(
     (id: string, from: Source, src: number, zone: Zone, insert: number, day: number) => {
-      if (zone === 'list' && view >= today) {
-        const at = from === 'list' && insert > src ? insert - 1 : insert;
-        dropOnDay(id, view, at);
-      } else if (zone === 'list' && from === 'list') {
-        dropOnDay(id, view, insert > src ? insert - 1 : insert);
+      // The drop slot counts open tasks only, so it is translated to a place among all of the day's tasks.
+      const toFull = (k: number) => {
+        const others = rows.filter((x) => x.id !== id);
+        const open = others.filter((x) => !x.doneAt);
+        if (k < open.length) return others.indexOf(open[k]);
+        return open.length ? others.indexOf(open[open.length - 1]) + 1 : 0;
+      };
+      const k = from === 'list' && insert > src ? insert - 1 : insert;
+      if (zone === 'list' && (view >= today || from === 'list')) {
+        dropOnDay(id, view, toFull(k));
       } else if (zone === 'day' && day >= 0) {
         const date = week[day];
         if (date >= today && date !== view) dropOnDay(id, date);
@@ -466,7 +498,7 @@ export default function TodayScreen() {
       // Forces the layout effect even when nothing changed, as in a cancelled drag.
       setTick((n) => n + 1);
     },
-    [today, view, week],
+    [rows, today, view, week],
   );
 
   const onDrop = useCallback(() => {
@@ -581,11 +613,12 @@ export default function TodayScreen() {
 
       <AnimatedScroll ref={scrollRef} onScroll={onScroll} scrollEventThrottle={16} style={s.flex} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: PEEK + 28 + (drawerOpen ? HALF : 0) }}>
         <QuickAdd t={t} />
-        <View ref={listRef} collapsable={false} style={{ minHeight: 120 }}>
-          {rows.length ? (
-            rows.map((task, index) => (
-              <View
+        <View ref={listRef} collapsable={false} style={{ minHeight: doneRows.length ? 64 : 120 }}>
+          {openRows.length ? (
+            openRows.map((task, index) => (
+              <Animated.View
                 key={task.id}
+                layout={LinearTransition.duration(260)}
                 onLayout={(e) => {
                   cache.current[task.id] = { y: e.nativeEvent.layout.y, h: e.nativeEvent.layout.height };
                   publish();
@@ -594,6 +627,7 @@ export default function TodayScreen() {
                 <DayRow
                   task={task}
                   group={task.groupId ? groups.get(task.groupId) : undefined}
+                  series={task.recurringId ? series.get(task.recurringId) : undefined}
                   index={index}
                   d={d}
                   width={winW}
@@ -601,12 +635,23 @@ export default function TodayScreen() {
                   onDrop={onDrop}
                   onToggle={onToggle}
                 />
-              </View>
+              </Animated.View>
             ))
-          ) : (
+          ) : !doneRows.length ? (
             <Text style={[s.empty, { color: t.mute }]}>{tr.emptyDay}</Text>
-          )}
+          ) : null}
         </View>
+        {doneRows.length ? <Text style={[s.doneHead, { color: t.mute }]}>{tr.doneSection(doneRows.length)}</Text> : null}
+        {doneRows.map((task) => (
+          <Animated.View key={task.id} layout={LinearTransition.duration(260)}>
+            <DoneRow
+              task={task}
+              group={task.groupId ? groups.get(task.groupId) : undefined}
+              series={task.recurringId ? series.get(task.recurringId) : undefined}
+              onToggle={onToggle}
+            />
+          </Animated.View>
+        ))}
       </AnimatedScroll>
 
       <Animated.View style={[s.drawer, { height: FULL, backgroundColor: t.paper, borderTopColor: t.line, shadowColor: t.shadow }, drawerStyle]}>
@@ -674,24 +719,25 @@ const s = StyleSheet.create({
   strip: { flex: 1, flexDirection: 'row' },
   arrow: { width: 22, alignItems: 'center', justifyContent: 'center' },
   arrowT: { fontFamily: font.regular, fontSize: 22 },
-  cell: { flex: 1, alignItems: 'center', paddingTop: 5, paddingBottom: 6, borderBottomWidth: 2, borderBottomColor: 'transparent' },
-  cellL: { fontFamily: font.regular, fontSize: 12 },
-  cellN: { fontSize: 18, lineHeight: 22, fontVariant: ['lining-nums'] },
+  cell: { flex: 1, alignItems: 'center', paddingTop: 3, paddingBottom: 4, borderBottomWidth: 2, borderBottomColor: 'transparent' },
+  cellL: { fontFamily: font.regular, fontSize: 11 },
+  cellN: { fontSize: 16, lineHeight: 19, fontVariant: ['lining-nums'] },
   cellBar: { width: '62%', height: 3, marginTop: 2, borderRadius: 2, overflow: 'hidden' },
   cellFill: { height: '100%' },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 18, minHeight: 62 },
-  rowMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 11, minHeight: 62 },
-  quick: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 14, marginTop: 8, marginBottom: 4, paddingHorizontal: 12, borderRadius: 12 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, minHeight: 48 },
+  rowMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6, minHeight: 48 },
+  quick: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 14, marginTop: 6, marginBottom: 2, paddingHorizontal: 12, borderRadius: 10 },
   quickPlus: { fontFamily: font.semibold, fontSize: 20, lineHeight: 24 },
-  quickIn: { flex: 1, fontFamily: font.regular, fontSize: 15.5, paddingVertical: 8 },
+  quickIn: { flex: 1, fontFamily: font.regular, fontSize: 14.5, paddingVertical: 6 },
+  doneHead: { fontFamily: font.semibold, fontSize: 12.5, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 },
   under: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20 },
   underT: { fontFamily: font.bold, fontSize: 15 },
-  check: { width: 30, height: 30, borderRadius: 15, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
-  tick: { fontFamily: font.bold, fontSize: 16, lineHeight: 20 },
+  check: { width: 24, height: 24, borderRadius: 12, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
+  tick: { fontFamily: font.bold, fontSize: 13, lineHeight: 17 },
   body: { flex: 1, minWidth: 0 },
-  title: { fontFamily: font.semibold, fontSize: 16.5, lineHeight: 21 },
+  title: { fontFamily: font.semibold, fontSize: 15.5, lineHeight: 20 },
   meta: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 1 },
-  metaT: { flexShrink: 1, fontFamily: font.regular, fontSize: 13.5, fontVariant: ['tabular-nums', 'lining-nums'] },
+  metaT: { flexShrink: 1, fontFamily: font.regular, fontSize: 12.5, fontVariant: ['tabular-nums', 'lining-nums'] },
   empty: { fontFamily: font.regular, fontSize: 15.5, textAlign: 'center', paddingHorizontal: 28, paddingVertical: 32 },
   drawer: { position: 'absolute', start: 0, end: 0, bottom: 0, borderTopStartRadius: 16, borderTopEndRadius: 16, borderTopWidth: 1, elevation: 10, shadowOpacity: 0.09, shadowRadius: 14, shadowOffset: { width: 0, height: -5 } },
   dhead: { height: 58, paddingHorizontal: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
@@ -705,7 +751,7 @@ const s = StyleSheet.create({
   chips: { gap: 6, paddingHorizontal: 18, alignItems: 'flex-start' },
   ghead: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 18, paddingTop: 12, paddingBottom: 4 },
   gheadT: { fontFamily: font.serif, fontSize: 15 },
-  poolRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 18, paddingVertical: 11, minHeight: 54, borderBottomWidth: 1 },
+  poolRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 18, paddingVertical: 7, minHeight: 46, borderBottomWidth: 1 },
   ghost: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 18, paddingVertical: 10, borderRadius: 10, borderWidth: 1.5, elevation: 14, shadowOpacity: 0.25, shadowRadius: 16, shadowOffset: { width: 0, height: 8 } },
   fly: { position: 'absolute', fontFamily: font.black, fontSize: 26, fontVariant: ['lining-nums'] },
 });

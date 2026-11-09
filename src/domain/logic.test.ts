@@ -228,6 +228,20 @@ describe('changing the days of a fixed item', () => {
   });
 });
 
+describe('timetable', () => {
+  it('edits a slot and its coming occurrences, and keeps the details', () => {
+    let d = apply(base(), L.createRecurring(base(), { title: 'Lecture', groupId: null, points: 2, weekdays: [5], time: '10:00', endTime: '12:00', place: 'Hall 3', reminderMin: 10 }, TODAY, NOW));
+    const id = d.recurring[0].id;
+    expect(d.recurring[0]).toMatchObject({ endTime: '12:00', place: 'Hall 3' });
+    d = apply(d, L.editRecurring(d, id, { title: 'Seminar', groupId: null, points: 3, weekdays: [0, 5], time: '09:00', endTime: '11:00', place: 'Room 1', reminderMin: 30 }, TODAY, NOW));
+    expect(d.recurring[0]).toMatchObject({ title: 'Seminar', time: '09:00', endTime: '11:00', place: 'Room 1', weekdays: [0, 5] });
+    const open = L.alive(d).filter((t) => t.recurringId === id);
+    expect(open.every((t) => t.title === 'Seminar' && t.time === '09:00' && t.reminderMin === 30)).toBe(true);
+    expect(open.map((t) => t.date)).toContain('2026-11-08');
+    expect(L.reminderJobs(d, NOW)[0]).toMatchObject({ title: 'Seminar', time: '09:00' });
+  });
+});
+
 describe('reminders', () => {
   it('lists only future reminders of open dated tasks, soonest first', () => {
     let { d } = add(base(), 'past', { time: '08:00', reminderMin: 0 });

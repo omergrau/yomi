@@ -48,7 +48,7 @@ export const ScoreHeader = React.forwardRef<any, {
   const fill = stats.closed ? t.onAccent : t.accent;
   const track = stats.closed ? t.onAccent : t.wash;
   const cut = stats.closed ? t.accent : t.paper;
-  const big = height < 720 ? 60 : 76;
+  const big = height < 720 ? 40 : 46;
 
   // Finished work comes first, so the bar always loads as one unbroken run.
   const ordered = [...tasks.filter((x) => x.doneAt), ...tasks.filter((x) => !x.doneAt)];
@@ -103,17 +103,17 @@ export const ScoreHeader = React.forwardRef<any, {
 });
 
 const s = StyleSheet.create({
-  wrap: { paddingHorizontal: 18, paddingTop: 12, paddingBottom: 12 },
+  wrap: { paddingHorizontal: 18, paddingTop: 8, paddingBottom: 8 },
   top: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: 12 },
-  date: { fontFamily: font.semibold, fontSize: 14.5, flexShrink: 1 },
-  rank: { fontFamily: font.regular, fontSize: 14.5, opacity: 0.72, fontVariant: ['tabular-nums', 'lining-nums'] },
-  score: { flexDirection: 'row', alignItems: 'baseline', gap: 8, marginTop: 2 },
+  date: { fontFamily: font.semibold, fontSize: 13.5, flexShrink: 1 },
+  rank: { fontFamily: font.regular, fontSize: 13.5, opacity: 0.72, fontVariant: ['tabular-nums', 'lining-nums'] },
+  score: { flexDirection: 'row', alignItems: 'baseline', gap: 6, marginTop: 0 },
   big: { fontFamily: font.black, fontVariant: ['tabular-nums', 'lining-nums'] },
-  total: { fontFamily: font.light, fontSize: 27, opacity: 0.72, fontVariant: ['lining-nums'] },
-  count: { fontFamily: font.regular, fontSize: 14.5, opacity: 0.72, marginStart: 'auto' },
-  bar: { height: 30, borderRadius: 8, marginTop: 8 },
-  fill: { position: 'absolute', top: 0, bottom: 0, start: 0, borderRadius: 8 },
+  total: { fontFamily: font.light, fontSize: 19, opacity: 0.72, fontVariant: ['lining-nums'] },
+  count: { fontFamily: font.regular, fontSize: 13.5, opacity: 0.72, marginStart: 'auto' },
+  bar: { height: 16, borderRadius: 6, marginTop: 4 },
+  fill: { position: 'absolute', top: 0, bottom: 0, start: 0, borderRadius: 6 },
   cut: { position: 'absolute', top: 0, bottom: 0, width: 2, marginStart: -1 },
-  mark: { position: 'absolute', top: -5, bottom: -5, width: 2, marginStart: -1 },
-  msg: { fontFamily: font.semibold, fontSize: 15, marginTop: 10, minHeight: 20 },
+  mark: { position: 'absolute', top: -4, bottom: -4, width: 2, marginStart: -1 },
+  msg: { fontFamily: font.semibold, fontSize: 13.5, marginTop: 5, minHeight: 18 },
 });

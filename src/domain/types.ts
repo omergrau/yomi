@@ -33,6 +33,9 @@ export type Recurring = {
   reminderMin: number | null;
   startDate: string;
   endedAt: number | null;
+  /** Timetable details. Absent on items made before the timetable existed. */
+  endTime?: string | null;
+  place?: string | null;
 };
 
 export type EventType = 'created' | 'planned' | 'moved' | 'deferred' | 'rolled' | 'unplanned' | 'completed' | 'reopened' | 'deleted';

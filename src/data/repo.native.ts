@@ -26,6 +26,10 @@ const MIGRATIONS = [
   `
   CREATE TABLE lists (id TEXT PRIMARY KEY NOT NULL, title TEXT NOT NULL, sort INTEGER NOT NULL, created_at INTEGER NOT NULL, items TEXT NOT NULL);
   `,
+  `
+  ALTER TABLE recurring ADD COLUMN end_time TEXT;
+  ALTER TABLE recurring ADD COLUMN place TEXT;
+  `,
 ];
 
 function migrate(db: SQLiteDatabase) {
@@ -47,8 +51,8 @@ const putTask = (db: SQLiteDatabase, t: Task) =>
   );
 const putGroup = (db: SQLiteDatabase, g: Group) => db.runSync('INSERT OR REPLACE INTO groups_ (id,name,color,sort) VALUES (?,?,?,?)', [g.id, g.name, g.color, g.sort]);
 const putRecurring = (db: SQLiteDatabase, r: Recurring) =>
-  db.runSync('INSERT OR REPLACE INTO recurring (id,title,group_id,points,weekdays,time,reminder_min,start_date,ended_at) VALUES (?,?,?,?,?,?,?,?,?)', [
-    r.id, r.title, r.groupId, r.points, JSON.stringify(r.weekdays), r.time, r.reminderMin, r.startDate, r.endedAt,
+  db.runSync('INSERT OR REPLACE INTO recurring (id,title,group_id,points,weekdays,time,reminder_min,start_date,ended_at,end_time,place) VALUES (?,?,?,?,?,?,?,?,?,?,?)', [
+    r.id, r.title, r.groupId, r.points, JSON.stringify(r.weekdays), r.time, r.reminderMin, r.startDate, r.endedAt, r.endTime ?? null, r.place ?? null,
   ]);
 const putLog = (db: SQLiteDatabase, l: DayLog) => db.runSync('INSERT OR REPLACE INTO day_logs (date,planned,done) VALUES (?,?,?)', [l.date, l.planned, l.done]);
 const putList = (db: SQLiteDatabase, l: Checklist) =>
@@ -78,7 +82,7 @@ export function openRepo(): Repo {
       const recurring = db.getAllSync<any>('SELECT * FROM recurring').map(
         (r): Recurring => ({
           id: r.id, title: r.title, groupId: r.group_id, points: r.points, weekdays: JSON.parse(r.weekdays), time: r.time,
-          reminderMin: r.reminder_min, startDate: r.start_date, endedAt: r.ended_at,
+          reminderMin: r.reminder_min, startDate: r.start_date, endedAt: r.ended_at, endTime: r.end_time, place: r.place,
         }),
       );
       const logs = db.getAllSync<DayLog>('SELECT date,planned,done FROM day_logs');

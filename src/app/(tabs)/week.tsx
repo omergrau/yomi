@@ -1,6 +1,7 @@
 import { router } from 'expo-router';
 import React, { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Timetable } from '../../components/Timetable';
 import { Dot, Pips } from '../../components/ui';
 import { addDays, weekDays } from '../../domain/dates';
 import { dayStats, dayTasks } from '../../domain/logic';
@@ -8,7 +9,7 @@ import { fmtDate, fmtDay, t as tr } from '../../i18n';
 import { setView, useApp } from '../../store';
 import { RTL, font, useTheme } from '../../theme';
 
-export default function WeekScreen() {
+function WeekList() {
   const t = useTheme();
   const { data, today } = useApp();
   const [anchor, setAnchor] = useState(today);
@@ -72,8 +73,29 @@ export default function WeekScreen() {
   );
 }
 
+export default function WeekScreen() {
+  const t = useTheme();
+  const [mode, setMode] = useState<'week' | 'table'>('week');
+  return (
+    <View style={[s.flex, { backgroundColor: t.paper }]}>
+      <View style={[s.seg, { backgroundColor: t.wash }]}>
+        {(['week', 'table'] as const).map((m) => (
+          <Pressable key={m} onPress={() => setMode(m)} style={[s.segBtn, mode === m ? { backgroundColor: t.paper } : null]} accessibilityRole="tab" accessibilityState={{ selected: mode === m }}>
+            <Text style={[s.segT, { color: mode === m ? t.ink : t.mute, fontFamily: mode === m ? font.semibold : font.regular }]}>{m === 'week' ? tr.weekTab : tr.timetableTab}</Text>
+          </Pressable>
+        ))}
+      </View>
+      {mode === 'week' ? <WeekList /> : <Timetable />}
+    </View>
+  );
+}
+
 const s = StyleSheet.create({
-  page: { paddingHorizontal: 18, paddingTop: 18, paddingBottom: 28 },
+  flex: { flex: 1 },
+  seg: { flexDirection: 'row', marginHorizontal: 16, marginTop: 12, marginBottom: 2, padding: 3, borderRadius: 10 },
+  segBtn: { flex: 1, paddingVertical: 7, borderRadius: 8, alignItems: 'center' },
+  segT: { fontSize: 14.5 },
+  page: { paddingHorizontal: 18, paddingTop: 10, paddingBottom: 28 },
   head: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   h1: { fontFamily: font.black, fontSize: 38, lineHeight: 46, fontVariant: ['lining-nums'] },
   nav: { flexDirection: 'row', gap: 26 },
