@@ -3,7 +3,7 @@
     "name": "יומי",
     "slug": "yomi",
     "scheme": "yomi",
-    "version": "2.0.0",
+    "version": "2.1.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -16,7 +16,7 @@
     },
     "android": {
       "package": "app.yomi",
-      "versionCode": 3,
+      "versionCode": 4,
       "predictiveBackGestureEnabled": false,
       "adaptiveIcon": {
         "backgroundColor": "#2A7D4F",
@@ -27,7 +27,8 @@
         "android.permission.POST_NOTIFICATIONS",
         "android.permission.SCHEDULE_EXACT_ALARM",
         "android.permission.RECEIVE_BOOT_COMPLETED",
-        "android.permission.VIBRATE"
+        "android.permission.VIBRATE",
+        "android.permission.READ_CALENDAR"
       ]
     },
     "web": {
@@ -60,6 +61,12 @@
             "image": "./assets/splash-icon.png",
             "backgroundColor": "#16181B"
           }
+        }
+      ],
+      [
+        "expo-calendar",
+        {
+          "calendarPermission": "יומי מציגה את האירועים מהיומן שלך בלו״ז היומי."
         }
       ]
     ],

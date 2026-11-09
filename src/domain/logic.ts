@@ -396,10 +396,10 @@ export function readBackup(raw: string): { data: AppData; events: TaskEvent[] } 
       dayLogs: Object.fromEntries(b.data.dayLogs.map((l) => [l.date, l])),
       // Backups made before lists existed simply have none.
       lists: Array.isArray(b.data.lists) ? b.data.lists : [],
-      meta: { lastDay: b.data.meta?.lastDay ?? null, theme: b.data.meta?.theme ?? 'system' },
+      meta: { lastDay: b.data.meta?.lastDay ?? null, theme: b.data.meta?.theme ?? 'system', hiddenCalendars: Array.isArray(b.data.meta?.hiddenCalendars) ? b.data.meta.hiddenCalendars : [] },
     },
     events: b.events,
   };
 }
 
-export const emptyData = (): AppData => ({ tasks: {}, groups: [], recurring: [], dayLogs: {}, lists: [], meta: { lastDay: null, theme: 'system' } });
+export const emptyData = (): AppData => ({ tasks: {}, groups: [], recurring: [], dayLogs: {}, lists: [], meta: { lastDay: null, theme: 'system', hiddenCalendars: [] } });

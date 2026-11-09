@@ -32,6 +32,7 @@ import type { Group, Points, Recurring, Task } from '../domain/types';
 import { t as tr } from '../i18n';
 import { buzzLift, dropOnDay, moveToTomorrow, openSheet, quickAdd, removeFromDay, setView, toggleDone, useApp } from '../store';
 import { RTL, font, useTheme, type Theme } from '../theme';
+import { Agenda } from './Agenda';
 import { ScoreHeader } from './ScoreHeader';
 import { TopicPicker } from './TopicPicker';
 import { Chip, Dot, Pips } from './ui';
@@ -678,6 +679,7 @@ export default function TodayScreen() {
       </View>
 
       <AnimatedScroll ref={scrollRef} onScroll={onScroll} scrollEventThrottle={16} style={s.flex} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: PEEK + 28 + (drawerOpen ? HALF : 0) }}>
+        <Agenda date={view} />
         <QuickAdd t={t} groups={data.groups} />
         <View ref={listRef} collapsable={false} style={{ minHeight: doneRows.length ? 64 : 120 }}>
           {openRows.length ? (

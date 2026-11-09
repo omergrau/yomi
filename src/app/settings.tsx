@@ -1,22 +1,31 @@
 import Constants from 'expo-constants';
 import { router } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
-import { Alert, AppState, Linking, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, AppState, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { pickBackup, shareBackup } from '../backup';
+import { askCalendar, calendarAccess, listCalendars, type CalendarAccess, type PhoneCalendar } from '../calendar';
 import { Btn, Chip, TextLink } from '../components/ui';
 import { t as tr } from '../i18n';
 import { askExact, askNotifications, reminderAccess, scheduleTest, type ReminderAccess } from '../notifications';
-import { exportPayload, importPayload, setTheme, showToast, useApp } from '../store';
+import { exportPayload, importPayload, setHiddenCalendars, setTheme, showToast, useApp } from '../store';
 import { font, useTheme } from '../theme';
 
 export default function SettingsScreen() {
   const t = useTheme();
   const { data } = useApp();
   const [access, setAccess] = useState<ReminderAccess | null>(null);
+  const [cal, setCal] = useState<CalendarAccess>('undetermined');
+  const [cals, setCals] = useState<PhoneCalendar[]>([]);
   const native = Platform.OS !== 'web';
 
   const refresh = useCallback(() => {
     reminderAccess().then(setAccess).catch(() => {});
+    calendarAccess()
+      .then(async (a) => {
+        setCal(a);
+        setCals(a === 'granted' ? await listCalendars() : []);
+      })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -105,6 +114,49 @@ export default function SettingsScreen() {
         <Text style={[s.note, { color: t.mute }]}>{tr.webOnlyPhone}</Text>
       )}
 
+      <Text style={[s.h2, { color: t.ink, borderTopColor: t.line }]}>{tr.calendarTitle}</Text>
+      {cal === 'unavailable' ? <Text style={[s.note, { color: t.mute }]}>{tr.calendarPhoneOnly}</Text> : null}
+      {cal === 'undetermined' ? (
+        <View style={s.col}>
+          <Text style={[s.note, { color: t.mute }]}>{tr.calendarConnectWhy}</Text>
+          <Btn label={tr.calendarConnect} solid onPress={() => askCalendar().then(refresh)} />
+        </View>
+      ) : null}
+      {cal === 'denied' ? (
+        <View style={s.col}>
+          <Text style={[s.note, { color: t.mute }]}>{tr.calendarDenied}</Text>
+          <TextLink label={tr.openSettings} onPress={() => Linking.openSettings()} />
+        </View>
+      ) : null}
+      {cal === 'granted' ? (
+        <View style={s.col}>
+          <Text style={[s.note, { color: t.mute }]}>{cals.length ? tr.calendarConnected : tr.calendarNone}</Text>
+          {cals.map((c) => {
+            const shown = !data.meta.hiddenCalendars.includes(c.id);
+            return (
+              <Pressable
+                key={c.id}
+                onPress={() => setHiddenCalendars(shown ? [...data.meta.hiddenCalendars, c.id] : data.meta.hiddenCalendars.filter((x) => x !== c.id))}
+                style={s.calRow}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: shown }}
+                aria-checked={shown}
+                accessibilityLabel={c.title}
+              >
+                <View style={[s.box, { borderColor: shown ? t.accent : t.soft, backgroundColor: shown ? t.accent : 'transparent' }]}>
+                  {shown ? <Text style={[s.boxT, { color: t.onAccent }]}>✓</Text> : null}
+                </View>
+                <View style={[s.calDot, { backgroundColor: c.color || t.soft }]} />
+                <View style={s.flex}>
+                  <Text style={[s.line, { color: t.ink }]} numberOfLines={1}>{c.title}</Text>
+                  {c.account ? <Text style={[s.note, { color: t.mute }]} numberOfLines={1}>{c.account}</Text> : null}
+                </View>
+              </Pressable>
+            );
+          })}
+        </View>
+      ) : null}
+
       <Text style={[s.h2, { color: t.ink, borderTopColor: t.line }]}>{tr.backup}</Text>
       <Text style={[s.note, { color: t.mute }]}>{tr.backupNote}</Text>
       {native ? (
@@ -130,5 +182,10 @@ const s = StyleSheet.create({
   col: { gap: 9, alignItems: 'stretch', marginTop: 4 },
   line: { fontFamily: font.medium, fontSize: 15.5, fontVariant: ['lining-nums'] },
   note: { fontFamily: font.regular, fontSize: 14.5, lineHeight: 20 },
+  flex: { flex: 1 },
+  calRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 4 },
+  box: { width: 20, height: 20, borderRadius: 5, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
+  boxT: { fontFamily: font.bold, fontSize: 12, lineHeight: 15 },
+  calDot: { width: 10, height: 10, borderRadius: 5 },
   version: { fontFamily: font.regular, fontSize: 13, textAlign: 'center', marginTop: 28 },
 });

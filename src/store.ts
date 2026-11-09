@@ -255,6 +255,7 @@ export function renameGroup(id: string, name: string) {
 }
 export const removeGroup = (id: string) => commit(L.deleteGroup(S.data, id));
 export const setTheme = (theme: AppData['meta']['theme']) => commit({ meta: { theme } });
+export const setHiddenCalendars = (hiddenCalendars: string[]) => commit({ meta: { hiddenCalendars } });
 
 export const exportPayload = () => JSON.stringify(L.makeBackup(S.data, repo.allEvents(), Date.now()));
 

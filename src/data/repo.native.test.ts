@@ -58,6 +58,7 @@ describe('phone database', () => {
     expect(d.recurring[0]).toMatchObject({ title: 'אימון', weekdays: [0, 2], time: '07:00', endTime: null, place: null });
     expect(d.dayLogs['2026-11-05']).toEqual({ date: '2026-11-05', planned: 8, done: 6 });
     expect(d.meta.theme).toBe('dark');
+    expect(d.meta.hiddenCalendars).toEqual([]);
     expect(d.lists).toEqual([]);
     expect(repo.eventsFor('t1')).toHaveLength(1);
     expect(L.totalPoints(d)).toBe(4);
@@ -114,6 +115,13 @@ describe('phone database', () => {
     repo.replaceAll(back.data, back.events);
     expect(Object.keys(repo.load().tasks)).toHaveLength(1);
     expect(repo.allEvents()).toHaveLength(1);
+  });
+
+  it('keeps the hidden calendars setting', async () => {
+    const { openRepo } = await import('./repo.native');
+    const repo = openRepo();
+    repo.apply({ meta: { hiddenCalendars: ['a', 'b'] } });
+    expect(repo.load().meta.hiddenCalendars).toEqual(['a', 'b']);
   });
 
   it('keeps lists and their items', async () => {

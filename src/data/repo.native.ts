@@ -60,7 +60,9 @@ const putList = (db: SQLiteDatabase, l: Checklist) =>
 const putEvent = (db: SQLiteDatabase, e: TaskEvent) =>
   db.runSync('INSERT OR REPLACE INTO events (id,task_id,type,from_date,to_date,at) VALUES (?,?,?,?,?,?)', [e.id, e.taskId, e.type, e.fromDate, e.toDate, e.at]);
 const putMeta = (db: SQLiteDatabase, m: Partial<AppData['meta']>) => {
-  Object.entries(m).forEach(([k, v]) => db.runSync('INSERT OR REPLACE INTO meta (key,value) VALUES (?,?)', [k, v ?? null]));
+  Object.entries(m).forEach(([k, v]) =>
+    db.runSync('INSERT OR REPLACE INTO meta (key,value) VALUES (?,?)', [k, Array.isArray(v) ? JSON.stringify(v) : v ?? null]),
+  );
 };
 
 type EventRow = { id: string; task_id: string; type: TaskEvent['type']; from_date: string | null; to_date: string | null; at: number };
@@ -94,7 +96,11 @@ export function openRepo(): Repo {
         tasks: Object.fromEntries(tasks.map((t) => [t.id, t])),
         groups, recurring, lists,
         dayLogs: Object.fromEntries(logs.map((l) => [l.date, l])),
-        meta: { lastDay: meta.lastDay ?? null, theme: (meta.theme as AppData['meta']['theme']) ?? 'system' },
+        meta: {
+          lastDay: meta.lastDay ?? null,
+          theme: (meta.theme as AppData['meta']['theme']) ?? 'system',
+          hiddenCalendars: meta.hiddenCalendars ? JSON.parse(meta.hiddenCalendars) : [],
+        },
       };
     },
     apply(c: Change) {

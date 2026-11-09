@@ -51,7 +51,7 @@ export type ListItem = { id: string; text: string; done: boolean };
 /** A plain checklist. It earns no points and belongs to no day. */
 export type Checklist = { id: string; title: string; sort: number; createdAt: number; items: ListItem[] };
 
-export type Meta = { lastDay: string | null; theme: 'system' | 'light' | 'dark' };
+export type Meta = { lastDay: string | null; theme: 'system' | 'light' | 'dark'; hiddenCalendars: string[] };
 
 export type AppData = {
   tasks: Record<string, Task>;
