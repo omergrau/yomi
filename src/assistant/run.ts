@@ -10,7 +10,7 @@ import { getApiKey } from './key';
 const MODEL = 'claude-opus-5-5';
 const MAX_STEPS = 8;
 
-const nullable = (type: string, description: string) => ({ type: [type, 'null'], description });
+const nullable = (type: string, description: string) => ({ anyOf: [{ type }, { type: 'null' }], description });
 const TOOLS: Anthropic.Beta.BetaTool[] = [
   {
     name: 'get_schedule',
@@ -186,7 +186,7 @@ function contextLine() {
 }
 
 export class AssistantFailure extends Error {
-  constructor(public kind: AssistantError) {
+  constructor(public kind: AssistantError, public detail = '') {
     super(kind);
   }
 }
@@ -204,9 +204,6 @@ export async function ask(text: string): Promise<AssistantTurn> {
       const response = await client.beta.messages.create({
         model: MODEL,
         max_tokens: 16000,
-        betas: ['server-side-fallback-2026-07-01'],
-        fallbacks: 'default',
-        cache_control: { type: 'ephemeral' },
         system: SYSTEM,
         tools: TOOLS,
         messages: history,
@@ -245,7 +242,9 @@ export async function ask(text: string): Promise<AssistantTurn> {
     if (e instanceof Anthropic.RateLimitError) throw new AssistantFailure('rate');
     if (e instanceof Anthropic.BadRequestError && /credit|billing|balance/i.test(e.message)) throw new AssistantFailure('no-credit');
     if (e instanceof Anthropic.APIConnectionError) throw new AssistantFailure('network');
-    throw new AssistantFailure('other');
+    // Keep the API's own words, so an unexpected failure can be reported and fixed.
+    const status = e instanceof Anthropic.APIError && e.status ? `${e.status} ` : '';
+    throw new AssistantFailure('other', `${status}${e instanceof Error ? e.message : String(e)}`.slice(0, 300));
   }
   return turn;
 }

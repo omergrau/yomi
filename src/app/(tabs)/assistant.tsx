@@ -46,7 +46,8 @@ export default function AssistantScreen() {
       list = [...list, { id: nextId++, from: 'bot', text: r.reply || tr.aiDoneNoText, summaries: r.summaries, undo: r.undo }];
     } catch (e) {
       const kind = e instanceof AssistantFailure ? e.kind : 'other';
-      list = [...list, { id: nextId++, from: 'bot', text: tr.aiError[kind], error: true }];
+      const detail = e instanceof AssistantFailure ? e.detail : e instanceof Error ? e.message : '';
+      list = [...list, { id: nextId++, from: 'bot', text: detail ? `${tr.aiError[kind]}\n(${detail})` : tr.aiError[kind], error: true }];
       if (kind === 'no-key' || kind === 'bad-key') setHasKey(kind === 'bad-key');
     }
     update(list);
