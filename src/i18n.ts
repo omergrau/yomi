@@ -45,6 +45,7 @@ const he = {
   quickAdd: 'הוספת משימה',
   topic: 'נושא',
   noTopic: 'בלי נושא',
+  pickTopic: 'בחירת נושא',
   pool: 'המשימות שלי',
   poolPull: 'למשוך למעלה',
   poolHint: 'לחיצה ארוכה וגרירה ליום',

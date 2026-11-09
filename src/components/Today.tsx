@@ -271,9 +271,10 @@ function QuickAdd({ t, groups }: { t: Theme; groups: Group[] }) {
   const [text, setText] = useState('');
   const [points, setPoints] = useState<Points>(3);
   const [groupId, setGroupId] = useState<string | null>(null);
+  const [topicOn, setTopicOn] = useState(false);
   const submit = () => {
     if (!text.trim()) return;
-    quickAdd(text, points, groupId);
+    quickAdd(text, points, topicOn ? groupId : null);
     setText('');
   };
   const open = !!text.trim();
@@ -289,6 +290,7 @@ function QuickAdd({ t, groups }: { t: Theme; groups: Group[] }) {
             if (!text.trim()) {
               setPoints(3);
               setGroupId(null);
+              setTopicOn(false);
             }
           }}
           submitBehavior="submit"
@@ -325,8 +327,25 @@ function QuickAdd({ t, groups }: { t: Theme; groups: Group[] }) {
             ))}
           </View>
           <View style={[s.quickRow, s.quickTopic]}>
-            <Text style={[s.quickLabel, { color: t.mute }]}>{tr.topic}</Text>
-            <TopicPicker groups={groups} value={groupId} onChange={setGroupId} />
+            <Pressable
+              onPress={() => {
+                const on = !topicOn;
+                setTopicOn(on);
+                if (on && !groupId && groups[0]) setGroupId(groups[0].id);
+              }}
+              hitSlop={8}
+              style={s.quickCheckWrap}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: topicOn }}
+              aria-checked={topicOn}
+              accessibilityLabel={tr.topic}
+            >
+              <View style={[s.quickCheck, { borderColor: topicOn ? t.accent : t.soft, backgroundColor: topicOn ? t.accent : t.paper }]}>
+                {topicOn ? <Text style={[s.quickCheckT, { color: t.onAccent }]}>✓</Text> : null}
+              </View>
+              <Text style={[s.quickCheckL, { color: topicOn ? t.ink : t.mute }]}>{tr.topic}</Text>
+            </Pressable>
+            {topicOn ? <TopicPicker groups={groups} value={groupId} onChange={setGroupId} /> : null}
           </View>
         </View>
       ) : null}
@@ -779,7 +798,11 @@ const s = StyleSheet.create({
   quickGoT: { fontFamily: font.bold, fontSize: 14, lineHeight: 18 },
   quickOpts: { gap: 6, paddingBottom: 9 },
   quickRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  quickLabel: { fontFamily: font.regular, fontSize: 12.5, width: 50 },
+  quickLabel: { fontFamily: font.regular, fontSize: 12.5, width: 62 },
+  quickCheckWrap: { flexDirection: 'row', alignItems: 'center', gap: 6, width: 62, height: 28 },
+  quickCheck: { width: 18, height: 18, borderRadius: 4, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
+  quickCheckT: { fontFamily: font.bold, fontSize: 11, lineHeight: 14 },
+  quickCheckL: { fontFamily: font.regular, fontSize: 12.5 },
   quickPt: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
   quickPtT: { fontFamily: font.semibold, fontSize: 12.5, fontVariant: ['lining-nums'] },
   quickTopic: { alignItems: 'flex-start' },
