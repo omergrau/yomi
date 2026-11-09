@@ -79,6 +79,9 @@ function commitUndoable(change: Change): () => void {
   };
 }
 
+/** Applies a change the assistant made and returns its undo. */
+export const applyAssistantChange = (change: Change) => commitUndoable(change);
+
 /** Runs at launch, on return to the app and once a minute, so a day that ended always rolls over. */
 export function ensureDay() {
   const today = toIso(new Date());

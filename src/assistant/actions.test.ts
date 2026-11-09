@@ -1,0 +1,71 @@
+import { describe, expect, it } from 'vitest';
+import { fireTime } from '../domain/dates';
+import * as L from '../domain/logic';
+import type { AppData } from '../domain/types';
+import { runAction, type Ctx } from './actions';
+
+const TODAY = '2026-11-10'; // A Tuesday.
+const NOW = fireTime(TODAY, '09:00', 0);
+const ctx = (data: AppData, events: Ctx['events'] = []): Ctx => ({ data, today: TODAY, now: NOW, events });
+const run = (data: AppData, name: string, input: unknown, events?: Ctx['events']) => {
+  const r = runAction(name, ctx(data, events), input);
+  return { ...r, data: r.change ? L.applyChange(data, r.change) : data };
+};
+
+describe('assistant actions', () => {
+  it('adds a meeting with a time, a length and a new topic', () => {
+    const r = run(L.emptyData(), 'add_task', { title: 'פגישה עם המנחה', date: '2026-11-12', start: '14:00', duration_min: 60, urgency: 4, topic: 'תואר', reminder_min: 30 });
+    const t = L.alive(r.data)[0];
+    expect(t).toMatchObject({ title: 'פגישה עם המנחה', date: '2026-11-12', time: '14:00', durationMin: 60, points: 4, reminderMin: 30 });
+    expect(r.data.groups.map((g) => g.name)).toEqual(['תואר']);
+    expect(r.summary).toContain('פגישה');
+  });
+
+  it('reuses an existing topic and keeps unchanged fields on update', () => {
+    let d = run(L.emptyData(), 'add_task', { title: 'a', date: TODAY, start: '10:00', duration_min: 30, urgency: 2, topic: 'עבודה', reminder_min: null }).data;
+    const id = L.alive(d)[0].id;
+    d = run(d, 'update_task', { task_id: id, title: null, date: '2026-11-11', remove_from_day: false, start: null, clear_time: false, duration_min: null, urgency: null, topic: 'עבודה', reminder_min: null }).data;
+    expect(d.tasks[id]).toMatchObject({ date: '2026-11-11', time: '10:00', durationMin: 30, points: 2 });
+    expect(d.groups).toHaveLength(1);
+  });
+
+  it('can take a task off its day', () => {
+    let d = run(L.emptyData(), 'add_task', { title: 'a', date: TODAY, start: '10:00', duration_min: null, urgency: 3, topic: null, reminder_min: null }).data;
+    const id = L.alive(d)[0].id;
+    d = run(d, 'update_task', { task_id: id, title: null, date: null, remove_from_day: true, start: null, clear_time: false, duration_min: null, urgency: null, topic: null, reminder_min: null }).data;
+    expect(d.tasks[id]).toMatchObject({ date: null, time: null });
+  });
+
+  it('adds a weekly slot that shows up on its days', () => {
+    const d = run(L.emptyData(), 'add_weekly', { title: 'אימון', weekdays: [0, 2], start: '18:00', end: '19:00', place: null, urgency: 3, topic: 'ספורט', reminder_min: 30 }).data;
+    expect(L.dayTasks(d, TODAY).map((t) => t.title)).toEqual(['אימון']);
+    expect(d.recurring[0]).toMatchObject({ endTime: '19:00', weekdays: [0, 2] });
+  });
+
+  it('finds free time around tasks and calendar events', () => {
+    const d = run(L.emptyData(), 'add_task', { title: 'lecture', date: TODAY, start: '10:00', duration_min: 120, urgency: 3, topic: null, reminder_min: null }).data;
+    const events = [{ title: 'dentist', start: fireTime(TODAY, '13:00', 0), end: fireTime(TODAY, '14:00', 0), allDay: false, location: null }];
+    const r = runAction('find_free_time', ctx(d, events), { from_date: TODAY, to_date: TODAY, duration_min: 60, earliest: '08:00', latest: '18:00' });
+    expect((r.result as { free: unknown[] }).free).toEqual([
+      { date: TODAY, start: '09:00', end: '10:00' },
+      { date: TODAY, start: '12:00', end: '13:00' },
+      { date: TODAY, start: '14:00', end: '18:00' },
+    ]);
+  });
+
+  it('reports the schedule with calendar events and tasks without a day', () => {
+    let d = run(L.emptyData(), 'add_task', { title: 'today', date: TODAY, start: null, duration_min: null, urgency: 5, topic: null, reminder_min: null }).data;
+    d = run(d, 'add_task', { title: 'someday', date: null, start: null, duration_min: null, urgency: 2, topic: null, reminder_min: null }).data;
+    const events = [{ title: 'dentist', start: fireTime(TODAY, '13:00', 0), end: fireTime(TODAY, '14:00', 0), allDay: false, location: 'clinic' }];
+    const r = runAction('get_schedule', ctx(d, events), { from_date: TODAY, to_date: TODAY }).result as any;
+    expect(r.days[0].tasks[0]).toMatchObject({ title: 'today', urgency: 5 });
+    expect(r.days[0].calendar[0]).toMatchObject({ title: 'dentist', start: '13:00', end: '14:00' });
+    expect(r.my_tasks_without_a_day[0].title).toBe('someday');
+  });
+
+  it('refuses bad input instead of guessing', () => {
+    expect(() => runAction('add_task', ctx(L.emptyData()), { title: 'x', date: 'tomorrow', start: null, duration_min: null, urgency: 3, topic: null, reminder_min: null })).toThrow();
+    expect(() => runAction('complete_task', ctx(L.emptyData()), { task_id: 'nope', done: true })).toThrow();
+    expect(() => runAction('nope', ctx(L.emptyData()), {})).toThrow();
+  });
+});

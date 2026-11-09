@@ -15,6 +15,7 @@ const ROUTES = [
   { href: '/lists', label: tr.nav.lists },
   { href: '/groups', label: tr.nav.groups },
   { href: '/score', label: tr.nav.score },
+  { href: '/assistant', label: tr.aiTab },
 ] as const;
 const ITEM_W = 84;
 const LAST = ROUTES.length - 1;
@@ -114,6 +115,7 @@ export default function TabsLayout() {
       <Tabs.Screen name="lists" />
       <Tabs.Screen name="groups" />
       <Tabs.Screen name="score" />
+      <Tabs.Screen name="assistant" />
     </Tabs>
   );
 }

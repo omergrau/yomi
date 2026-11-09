@@ -3,7 +3,7 @@
     "name": "יומי",
     "slug": "yomi",
     "scheme": "yomi",
-    "version": "2.1.0",
+    "version": "2.2.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -16,7 +16,7 @@
     },
     "android": {
       "package": "app.yomi",
-      "versionCode": 4,
+      "versionCode": 5,
       "predictiveBackGestureEnabled": false,
       "adaptiveIcon": {
         "backgroundColor": "#2A7D4F",
@@ -68,7 +68,8 @@
         {
           "calendarPermission": "יומי מציגה את האירועים מהיומן שלך בלו״ז היומי."
         }
-      ]
+      ],
+      "expo-secure-store"
     ],
     "extra": {
       "supportsRTL": true,

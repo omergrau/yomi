@@ -1,7 +1,9 @@
 import Constants from 'expo-constants';
 import { router } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
-import { Alert, AppState, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, AppState, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { clearApiKey, getApiKey, looksLikeKey, setApiKey } from '../assistant/key';
+import { checkKey } from '../assistant/run';
 import { pickBackup, shareBackup } from '../backup';
 import { askCalendar, calendarAccess, listCalendars, type CalendarAccess, type PhoneCalendar } from '../calendar';
 import { Btn, Chip, TextLink } from '../components/ui';
@@ -15,6 +17,29 @@ export default function SettingsScreen() {
   const { data } = useApp();
   const [access, setAccess] = useState<ReminderAccess | null>(null);
   const [cal, setCal] = useState<CalendarAccess>('undetermined');
+  const [hasKey, setHasKey] = useState(false);
+  const [keyText, setKeyText] = useState('');
+  const [keyMsg, setKeyMsg] = useState('');
+  useEffect(() => {
+    getApiKey().then((k) => setHasKey(!!k));
+  }, []);
+  const saveKey = async () => {
+    if (!looksLikeKey(keyText)) {
+      setKeyMsg(tr.aiKeyBadFormat);
+      return;
+    }
+    setKeyMsg(tr.aiKeyChecking);
+    const r = await checkKey(keyText.trim());
+    if (r !== 'ok') {
+      setKeyMsg(tr.aiError[r]);
+      return;
+    }
+    await setApiKey(keyText);
+    setKeyText('');
+    setHasKey(true);
+    setKeyMsg('');
+    showToast(tr.aiKeySaved);
+  };
   const [cals, setCals] = useState<PhoneCalendar[]>([]);
   const native = Platform.OS !== 'web';
 
@@ -114,6 +139,43 @@ export default function SettingsScreen() {
         <Text style={[s.note, { color: t.mute }]}>{tr.webOnlyPhone}</Text>
       )}
 
+      <Text style={[s.h2, { color: t.ink, borderTopColor: t.line }]}>{tr.aiSettingsTitle}</Text>
+      <View style={s.col}>
+        <Text style={[s.note, { color: t.mute }]}>{tr.aiSettingsNote}</Text>
+        {hasKey ? (
+          <>
+            <Text style={[s.line, { color: t.ink }]}>{tr.aiKeyOn}</Text>
+            <TextLink
+              label={tr.aiRemoveKey}
+              onPress={async () => {
+                await clearApiKey();
+                setHasKey(false);
+                showToast(tr.aiKeyRemoved);
+              }}
+            />
+          </>
+        ) : (
+          <>
+            <TextInput
+              value={keyText}
+              onChangeText={(v) => {
+                setKeyText(v);
+                setKeyMsg('');
+              }}
+              placeholder={tr.aiKeyPh}
+              placeholderTextColor={t.soft}
+              secureTextEntry
+              autoCapitalize="none"
+              autoCorrect={false}
+              style={[s.keyInput, { color: t.ink, backgroundColor: t.wash }]}
+              accessibilityLabel={tr.aiSettingsTitle}
+            />
+            {keyMsg ? <Text style={[s.note, { color: t.ink }]}>{keyMsg}</Text> : null}
+            <Btn label={tr.aiSaveKey} solid onPress={saveKey} />
+          </>
+        )}
+      </View>
+
       <Text style={[s.h2, { color: t.ink, borderTopColor: t.line }]}>{tr.calendarTitle}</Text>
       {cal === 'unavailable' ? <Text style={[s.note, { color: t.mute }]}>{tr.calendarPhoneOnly}</Text> : null}
       {cal === 'undetermined' ? (
@@ -183,6 +245,7 @@ const s = StyleSheet.create({
   line: { fontFamily: font.medium, fontSize: 15.5, fontVariant: ['lining-nums'] },
   note: { fontFamily: font.regular, fontSize: 14.5, lineHeight: 20 },
   flex: { flex: 1 },
+  keyInput: { borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontFamily: font.regular, fontSize: 15 },
   calRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 4 },
   box: { width: 20, height: 20, borderRadius: 5, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
   boxT: { fontFamily: font.bold, fontSize: 12, lineHeight: 15 },
