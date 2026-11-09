@@ -3,7 +3,7 @@ import { Tabs, router, usePathname } from 'expo-router';
 import React, { useCallback, useEffect, useRef } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
-import Animated, { useAnimatedStyle, useSharedValue, withSpring, type SharedValue } from 'react-native-reanimated';
+import Animated, { Easing, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withSpring, withTiming, type SharedValue } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import { t as tr } from '../../i18n';
 import { getApiKey } from '../../assistant/key';
@@ -39,6 +39,34 @@ function WheelItem({ index, pos, on, onPress }: { index: number; pos: SharedValu
         <Text style={[s.label, { color: on ? t.ink : t.mute, fontFamily: on ? font.bold : font.medium }]}>{ROUTES[index].label}</Text>
       </Pressable>
     </Animated.View>
+  );
+}
+
+/** The assistant shortcut: a soft green pill with a sparkle that gently glows. */
+function AiTag() {
+  const t = useTheme();
+  const glow = useSharedValue(0);
+  useEffect(() => {
+    glow.value = withRepeat(
+      withSequence(withTiming(1, { duration: 1400, easing: Easing.inOut(Easing.quad) }), withTiming(0, { duration: 1400, easing: Easing.inOut(Easing.quad) })),
+      -1,
+    );
+  }, [glow]);
+  const sparkle = useAnimatedStyle(() => ({ opacity: 0.55 + glow.value * 0.45, transform: [{ scale: 0.9 + glow.value * 0.2 }, { rotate: `${glow.value * 18}deg` }] }));
+  return (
+    <Pressable
+      onPress={async () => ((await getApiKey()) ? router.navigate('/assistant') : router.push('/settings'))}
+      hitSlop={6}
+      accessibilityRole="button"
+      accessibilityLabel={tr.aiShortcutLabel}
+      style={({ pressed }) => [
+        s.ai,
+        { backgroundColor: `${t.accent}1F`, borderColor: `${t.accent}66`, shadowColor: t.accent, transform: [{ scale: pressed ? 0.94 : 1 }] },
+      ]}
+    >
+      <Animated.Text style={[s.aiStar, { color: t.accent }, sparkle]}>✦</Animated.Text>
+      <Text style={[s.aiT, { color: t.accent }]}>AI</Text>
+    </Pressable>
   );
 }
 
@@ -87,15 +115,7 @@ function Bar() {
         </Pressable>
       </View>
       {/* A shortcut to the assistant: the chat when a key is set, otherwise the place to add one. */}
-      <Pressable
-        onPress={async () => ((await getApiKey()) ? router.navigate('/assistant') : router.push('/settings'))}
-        style={[s.ai, { borderColor: t.accent }]}
-        hitSlop={6}
-        accessibilityRole="button"
-        accessibilityLabel={tr.aiShortcut}
-      >
-        <Text style={[s.aiT, { color: t.accent }]}>{tr.aiShortcut}</Text>
-      </Pressable>
+      <AiTag />
       <GestureDetector gesture={pan}>
         <View style={s.wheel} accessibilityRole="tablist">
           {ROUTES.map((r, i) => (
@@ -139,8 +159,12 @@ const s = StyleSheet.create({
   label: { fontSize: 15 },
   dot: { position: 'absolute', bottom: 8, width: 5, height: 5, borderRadius: 3 },
   mid: { width: 62, alignItems: 'center' },
-  ai: { height: 28, paddingHorizontal: 10, borderRadius: 14, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center', marginEnd: 4 },
-  aiT: { fontFamily: font.bold, fontSize: 12.5 },
+  ai: {
+    flexDirection: 'row', alignItems: 'center', gap: 4, height: 30, paddingStart: 9, paddingEnd: 11, borderRadius: 15, borderWidth: 1, marginEnd: 4,
+    elevation: 3, shadowOpacity: 0.25, shadowRadius: 6, shadowOffset: { width: 0, height: 2 },
+  },
+  aiStar: { fontSize: 14, lineHeight: 17 },
+  aiT: { fontFamily: font.bold, fontSize: 13, letterSpacing: 0.6 },
   add: { width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center' },
   plus: { fontFamily: font.light, fontSize: 32, lineHeight: 36 },
 });
