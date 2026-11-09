@@ -33,6 +33,7 @@ import { t as tr } from '../i18n';
 import { buzzLift, dropOnDay, moveToTomorrow, openSheet, quickAdd, removeFromDay, setView, toggleDone, useApp } from '../store';
 import { RTL, font, useTheme, type Theme } from '../theme';
 import { ScoreHeader } from './ScoreHeader';
+import { TopicPicker } from './TopicPicker';
 import { Chip, Dot, Pips } from './ui';
 
 const AnimatedScroll = Animated.createAnimatedComponent(ScrollView);
@@ -270,9 +271,10 @@ function QuickAdd({ t, groups }: { t: Theme; groups: Group[] }) {
   const [text, setText] = useState('');
   const [points, setPoints] = useState<Points>(3);
   const [groupId, setGroupId] = useState<string | null>(null);
+  const [noDate, setNoDate] = useState(false);
   const submit = () => {
     if (!text.trim()) return;
-    quickAdd(text, points, groupId);
+    quickAdd(text, points, groupId, noDate);
     setText('');
   };
   const open = !!text.trim();
@@ -288,6 +290,7 @@ function QuickAdd({ t, groups }: { t: Theme; groups: Group[] }) {
             if (!text.trim()) {
               setPoints(3);
               setGroupId(null);
+              setNoDate(false);
             }
           }}
           submitBehavior="submit"
@@ -315,6 +318,7 @@ function QuickAdd({ t, groups }: { t: Theme; groups: Group[] }) {
                 hitSlop={3}
                 accessibilityRole="radio"
                 accessibilityState={{ selected: points === n }}
+                aria-checked={points === n}
                 accessibilityLabel={tr.ptsLabel(n)}
                 style={[s.quickPt, { backgroundColor: n <= points ? t.accent : t.paper }]}
               >
@@ -322,24 +326,25 @@ function QuickAdd({ t, groups }: { t: Theme; groups: Group[] }) {
               </Pressable>
             ))}
           </View>
-          <ScrollView horizontal keyboardShouldPersistTaps="handled" showsHorizontalScrollIndicator={false} contentContainerStyle={s.quickRow}>
+          <View style={s.quickRow}>
+            <Text style={[s.quickLabel, { color: t.mute }]}>{tr.quickWhen}</Text>
+            {[false, true].map((nd) => (
+              <Pressable
+                key={String(nd)}
+                onPress={() => setNoDate(nd)}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: noDate === nd, checked: noDate === nd }}
+                aria-checked={noDate === nd}
+                style={[s.quickWhen, { backgroundColor: noDate === nd ? t.ink : t.paper }]}
+              >
+                <Text style={[s.quickWhenT, { color: noDate === nd ? t.paper : t.ink }]}>{nd ? tr.noTime : tr.today}</Text>
+              </Pressable>
+            ))}
+          </View>
+          <View style={[s.quickRow, s.quickTopic]}>
             <Text style={[s.quickLabel, { color: t.mute }]}>{tr.topic}</Text>
-            {[{ id: null, name: tr.noTopic, color: undefined as number | undefined }, ...groups].map((g) => {
-              const on = groupId === g.id;
-              return (
-                <Pressable
-                  key={g.id ?? 'none'}
-                  onPress={() => setGroupId(g.id)}
-                  accessibilityRole="radio"
-                  accessibilityState={{ selected: on }}
-                  style={[s.quickChip, { backgroundColor: on ? t.ink : t.paper }]}
-                >
-                  {g.id ? <Dot color={g.color} size={7} /> : null}
-                  <Text style={[s.quickChipT, { color: on ? t.paper : t.ink }]}>{g.name}</Text>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
+            <TopicPicker groups={groups} value={groupId} onChange={setGroupId} />
+          </View>
         </View>
       ) : null}
     </View>
@@ -794,8 +799,9 @@ const s = StyleSheet.create({
   quickLabel: { fontFamily: font.regular, fontSize: 12.5, minWidth: 44 },
   quickPt: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
   quickPtT: { fontFamily: font.semibold, fontSize: 12.5, fontVariant: ['lining-nums'] },
-  quickChip: { flexDirection: 'row', alignItems: 'center', gap: 5, height: 26, paddingHorizontal: 10, borderRadius: 13 },
-  quickChipT: { fontFamily: font.regular, fontSize: 13 },
+  quickTopic: { alignItems: 'flex-start' },
+  quickWhen: { height: 26, paddingHorizontal: 12, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
+  quickWhenT: { fontFamily: font.regular, fontSize: 13 },
   quickPlus: { fontFamily: font.semibold, fontSize: 20, lineHeight: 24 },
   quickIn: { flex: 1, fontFamily: font.regular, fontSize: 14.5, paddingVertical: 6 },
   doneHead: { fontFamily: font.semibold, fontSize: 12.5, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 },

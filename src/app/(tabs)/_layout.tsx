@@ -33,7 +33,7 @@ function WheelItem({ index, pos, on, onPress }: { index: number; pos: SharedValu
   });
   return (
     <Animated.View style={[s.item, style]}>
-      <Pressable onPress={onPress} style={s.itemHit} accessibilityRole="tab" accessibilityState={{ selected: on }}>
+      <Pressable onPress={onPress} style={s.itemHit} accessibilityRole="tab" accessibilityState={{ selected: on }} aria-selected={on}>
         <Text style={[s.label, { color: on ? t.ink : t.mute, fontFamily: on ? font.bold : font.medium }]}>{ROUTES[index].label}</Text>
       </Pressable>
     </Animated.View>

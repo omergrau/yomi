@@ -215,7 +215,7 @@ export function Timetable() {
             <Pressable key={r.id} onPress={() => setEditing({ slot: r })} style={[s.slot, { backgroundColor: t.wash }]} accessibilityRole="button" accessibilityLabel={`${r.title} ${r.time ?? ''}`}>
               <View style={[s.bar, { backgroundColor: g ? groupColor(t, g.color) : t.accent }]} />
               <View style={s.when}>
-                <Text style={[s.start, { color: t.ink }]}>{r.time ?? tr.noTime}</Text>
+                <Text style={[s.start, { color: t.ink }]}>{r.time ?? tr.noHour}</Text>
                 {r.endTime ? <Text style={[s.end, { color: t.mute }]}>{r.endTime}</Text> : null}
               </View>
               <View style={s.info}>

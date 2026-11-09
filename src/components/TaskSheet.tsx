@@ -223,7 +223,7 @@ function SheetBody() {
                   </View>
                 </View>
                 <View style={s.row}>
-                  <Cell wide label={tr.noTime} on={!f.time} onPress={() => up({ time: null, reminderMin: null })} t={t} />
+                  <Cell wide label={tr.noHour} on={!f.time} onPress={() => up({ time: null, reminderMin: null })} t={t} />
                   {hasNativePickers ? (
                     <Cell
                       wide
