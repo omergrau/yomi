@@ -105,7 +105,7 @@ const TOOLS: Anthropic.Beta.BetaTool[] = [
   },
 ];
 
-const SYSTEM = `You are the planning assistant inside "Yomi", a personal Hebrew day planner on the person's phone.
+const SYSTEM = `You are the planning assistant inside "עוזר אישי" (Personal Assistant), a personal Hebrew day planner on the person's phone.
 You can read their schedule and change it with the tools. Reply in short, natural Hebrew.
 
 How the app works:

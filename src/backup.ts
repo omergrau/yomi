@@ -7,7 +7,7 @@ export async function shareBackup(payload: string) {
   const file = new File(Paths.cache, `yomi-backup-${toIso(new Date())}.json`);
   file.create({ overwrite: true });
   file.write(payload);
-  await Sharing.shareAsync(file.uri, { mimeType: 'application/json', dialogTitle: 'יומי' });
+  await Sharing.shareAsync(file.uri, { mimeType: 'application/json', dialogTitle: 'עוזר אישי' });
 }
 
 /** Returns the file's text, or null when nothing was chosen. */

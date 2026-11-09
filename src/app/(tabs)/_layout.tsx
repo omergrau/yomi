@@ -6,6 +6,7 @@ import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring, type SharedValue } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import { t as tr } from '../../i18n';
+import { getApiKey } from '../../assistant/key';
 import { openSheet } from '../../store';
 import { RTL, font, useTheme } from '../../theme';
 
@@ -85,6 +86,16 @@ function Bar() {
           <Text style={[s.plus, { color: t.onAccent }]}>+</Text>
         </Pressable>
       </View>
+      {/* A shortcut to the assistant: the chat when a key is set, otherwise the place to add one. */}
+      <Pressable
+        onPress={async () => ((await getApiKey()) ? router.navigate('/assistant') : router.push('/settings'))}
+        style={[s.ai, { borderColor: t.accent }]}
+        hitSlop={6}
+        accessibilityRole="button"
+        accessibilityLabel={tr.aiShortcut}
+      >
+        <Text style={[s.aiT, { color: t.accent }]}>{tr.aiShortcut}</Text>
+      </Pressable>
       <GestureDetector gesture={pan}>
         <View style={s.wheel} accessibilityRole="tablist">
           {ROUTES.map((r, i) => (
@@ -128,6 +139,8 @@ const s = StyleSheet.create({
   label: { fontSize: 15 },
   dot: { position: 'absolute', bottom: 8, width: 5, height: 5, borderRadius: 3 },
   mid: { width: 62, alignItems: 'center' },
+  ai: { height: 28, paddingHorizontal: 10, borderRadius: 14, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center', marginEnd: 4 },
+  aiT: { fontFamily: font.bold, fontSize: 12.5 },
   add: { width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center' },
   plus: { fontFamily: font.light, fontSize: 32, lineHeight: 36 },
 });
