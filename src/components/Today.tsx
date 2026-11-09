@@ -271,10 +271,9 @@ function QuickAdd({ t, groups }: { t: Theme; groups: Group[] }) {
   const [text, setText] = useState('');
   const [points, setPoints] = useState<Points>(3);
   const [groupId, setGroupId] = useState<string | null>(null);
-  const [noDate, setNoDate] = useState(false);
   const submit = () => {
     if (!text.trim()) return;
-    quickAdd(text, points, groupId, noDate);
+    quickAdd(text, points, groupId);
     setText('');
   };
   const open = !!text.trim();
@@ -290,7 +289,6 @@ function QuickAdd({ t, groups }: { t: Theme; groups: Group[] }) {
             if (!text.trim()) {
               setPoints(3);
               setGroupId(null);
-              setNoDate(false);
             }
           }}
           submitBehavior="submit"
@@ -323,21 +321,6 @@ function QuickAdd({ t, groups }: { t: Theme; groups: Group[] }) {
                 style={[s.quickPt, { backgroundColor: n <= points ? t.accent : t.paper }]}
               >
                 <Text style={[s.quickPtT, { color: n <= points ? t.onAccent : t.mute }]}>{n}</Text>
-              </Pressable>
-            ))}
-          </View>
-          <View style={s.quickRow}>
-            <Text style={[s.quickLabel, { color: t.mute }]}>{tr.quickWhen}</Text>
-            {[false, true].map((nd) => (
-              <Pressable
-                key={String(nd)}
-                onPress={() => setNoDate(nd)}
-                accessibilityRole="radio"
-                accessibilityState={{ selected: noDate === nd, checked: noDate === nd }}
-                aria-checked={noDate === nd}
-                style={[s.quickWhen, { backgroundColor: noDate === nd ? t.ink : t.paper }]}
-              >
-                <Text style={[s.quickWhenT, { color: noDate === nd ? t.paper : t.ink }]}>{nd ? tr.noTime : tr.today}</Text>
               </Pressable>
             ))}
           </View>
@@ -796,12 +779,10 @@ const s = StyleSheet.create({
   quickGoT: { fontFamily: font.bold, fontSize: 14, lineHeight: 18 },
   quickOpts: { gap: 6, paddingBottom: 9 },
   quickRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  quickLabel: { fontFamily: font.regular, fontSize: 12.5, minWidth: 44 },
+  quickLabel: { fontFamily: font.regular, fontSize: 12.5, width: 50 },
   quickPt: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
   quickPtT: { fontFamily: font.semibold, fontSize: 12.5, fontVariant: ['lining-nums'] },
   quickTopic: { alignItems: 'flex-start' },
-  quickWhen: { height: 26, paddingHorizontal: 12, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
-  quickWhenT: { fontFamily: font.regular, fontSize: 13 },
   quickPlus: { fontFamily: font.semibold, fontSize: 20, lineHeight: 24 },
   quickIn: { flex: 1, fontFamily: font.regular, fontSize: 14.5, paddingVertical: 6 },
   doneHead: { fontFamily: font.semibold, fontSize: 12.5, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 },

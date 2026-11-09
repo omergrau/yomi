@@ -1,6 +1,6 @@
 // Picks a topic for a new task. Up to five topics turn on a wheel; more open a list.
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring, type SharedValue } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
@@ -157,8 +157,9 @@ export function TopicPicker({ groups, value, onChange }: { groups: Group[]; valu
 
 const s = StyleSheet.create({
   flex: { flex: 1 },
-  wheel: { flex: 1, height: 34, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
-  item: { position: 'absolute', width: ITEM_W, alignItems: 'center' },
+  wheel: { flex: 1, height: 34, overflow: 'hidden', justifyContent: 'center' },
+  // The web preview lays out right-to-left through the document, so it needs the physical side.
+  item: { position: 'absolute', width: ITEM_W, alignItems: 'flex-start', ...(Platform.OS === 'web' ? { right: 0 } : { start: 0 }) },
   pill: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 30, maxWidth: ITEM_W - 6, paddingHorizontal: 11, borderRadius: 15 },
   pillT: { fontSize: 13.5, flexShrink: 1 },
   dot: { width: 8, height: 8, borderRadius: 4 },
