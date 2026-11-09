@@ -736,7 +736,10 @@ export default function TodayScreen() {
               <Text style={[s.dtitle, { color: t.ink }]}>{tr.pool}</Text>
               <Text style={[s.dcount, { color: t.mute }]}>{pool.length}</Text>
             </View>
-            <Text style={[s.dhint, { color: t.mute }]}>{drawerOpen ? tr.poolHint : tr.poolPull}</Text>
+            {/* A small chevron at the top centre says the drawer pulls up; it turns down once open. */}
+            <View pointerEvents="none" style={s.grabWrap}>
+              <View style={[s.grab, { borderColor: t.soft, transform: [{ translateY: drawerOpen ? -2 : 2 }, { rotate: drawerOpen ? '225deg' : '45deg' }] }]} />
+            </View>
             <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, s.drop, dropStyle]}>
               <Animated.Text style={[s.dropT, dropTextStyle]}>{ghost?.from === 'pool' ? tr.dropKeep : tr.dropRemove}</Animated.Text>
             </Animated.View>
@@ -832,7 +835,8 @@ const s = StyleSheet.create({
   dheadRow: { flexDirection: 'row', alignItems: 'baseline', gap: 7 },
   dtitle: { fontFamily: font.serif, fontSize: 19 },
   dcount: { fontFamily: font.regular, fontSize: 14.5, fontVariant: ['lining-nums'] },
-  dhint: { fontFamily: font.regular, fontSize: 13.5 },
+  grabWrap: { position: 'absolute', top: 5, left: 0, right: 0, height: 12, alignItems: 'center', justifyContent: 'center' },
+  grab: { width: 9, height: 9, borderTopWidth: 2, borderLeftWidth: 2, borderRadius: 1 },
   drop: { alignItems: 'center', justifyContent: 'center', borderTopStartRadius: 16, borderTopEndRadius: 16 },
   dropT: { fontFamily: font.bold, fontSize: 15.5 },
   chipsWrap: { height: 44 },
