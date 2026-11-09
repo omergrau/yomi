@@ -1,8 +1,9 @@
-// A light quick-add sheet: title, worth and a row of small options. Details open only when asked for.
-import React, { useState } from 'react';
+// Everything about a task on one screen: one tap per change, no typing except the name.
+// Changes to an existing task save as they are made.
+import React, { useRef, useState } from 'react';
 import { KeyboardAvoidingView, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { addDays, weekday } from '../domain/dates';
+import { addDays, parseIso, weekDays, weekday } from '../domain/dates';
 import type { Points, Task, TaskEvent } from '../domain/types';
 import { fmtDate, t as tr } from '../i18n';
 import { ensureReminderPermission } from '../notifications';
@@ -11,11 +12,11 @@ import {
   addGroup, closeSheet, deleteTask, endSeries, moveToTomorrow, removeFromDay, saveForm, taskHistory, useApp, type TaskForm,
 } from '../store';
 import { font, groupColor, useTheme, type Theme } from '../theme';
-import { Chip, Dot } from './ui';
 
-const VALID_TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
-const VALID_DATE = /^\d{4}-\d{2}-\d{2}$/;
-type Panel = 'none' | 'when' | 'group' | 'time' | 'repeat';
+const HOURS = Array.from({ length: 18 }, (_, i) => i + 6);
+const MINUTES = ['00', '15', '30', '45'];
+const pad = (n: number) => String(n).padStart(2, '0');
+const chunk = <T,>(xs: T[], n: number) => Array.from({ length: Math.ceil(xs.length / n) }, (_, i) => xs.slice(i * n, i * n + n));
 
 function initial(task: Task | null, weekdays: number[] | null, preset: { groupId?: string | null; date?: string | null }, view: string, today: string): TaskForm {
   if (task) {
@@ -25,25 +26,28 @@ function initial(task: Task | null, weekdays: number[] | null, preset: { groupId
     };
   }
   const date = preset.date !== undefined ? preset.date : view >= today ? view : today;
-  return {
-    title: '', groupId: preset.groupId ?? null, points: 3, date, time: null, reminderMin: null,
-    repeat: false, weekdays: [weekday(date ?? today)],
-  };
+  return { title: '', groupId: preset.groupId ?? null, points: 3, date, time: null, reminderMin: null, repeat: false, weekdays: [] };
 }
 
-function Pill({ label, set, open, color, onPress, t }: { label: string; set: boolean; open: boolean; color?: string; onPress: () => void; t: Theme }) {
-  return (
-    <Pressable onPress={onPress} accessibilityRole="button" accessibilityState={{ expanded: open }} style={[s.pill, { backgroundColor: open ? t.line : t.wash }]}>
-      {color ? <View style={[s.pillDot, { backgroundColor: color }]} /> : null}
-      <Text style={[s.pillT, { color: set ? t.ink : t.mute, fontFamily: set ? font.semibold : font.regular }]}>{label}</Text>
-    </Pressable>
-  );
+function Label({ text, t }: { text: string; t: Theme }) {
+  return <Text style={[s.label, { color: t.mute }]}>{text}</Text>;
 }
 
-function Quiet({ label, onPress, t }: { label: string; onPress: () => void; t: Theme }) {
+/** A small tappable cell. Selected cells are filled. */
+function Cell({ label, on, off, wide, color, onPress, t, a11y }: {
+  label: string; on?: boolean; off?: boolean; wide?: boolean; color?: string; onPress: () => void; t: Theme; a11y?: string;
+}) {
   return (
-    <Pressable onPress={onPress} hitSlop={8} accessibilityRole="button">
-      <Text style={[s.quiet, { color: t.mute }]}>{label}</Text>
+    <Pressable
+      onPress={off ? undefined : onPress}
+      disabled={off}
+      accessibilityRole="button"
+      accessibilityState={{ selected: !!on, disabled: !!off }}
+      accessibilityLabel={a11y ?? label}
+      style={[wide ? s.chip : s.cell, { backgroundColor: on ? t.ink : t.wash, opacity: off ? 0.35 : 1 }]}
+    >
+      {color ? <View style={[s.dot, { backgroundColor: color }]} /> : null}
+      <Text style={[s.cellT, { color: on ? t.paper : t.ink, fontFamily: on ? font.semibold : font.regular }]}>{label}</Text>
     </Pressable>
   );
 }
@@ -61,65 +65,72 @@ function SheetBody() {
   const task = sheet?.id ? data.tasks[sheet.id] ?? null : null;
   const series = task?.recurringId ? data.recurring.find((r) => r.id === task.recurringId) ?? null : null;
   const [f, setF] = useState<TaskForm>(() => initial(task, series?.weekdays ?? null, sheet ?? {}, view, today));
-  const [panel, setPanel] = useState<Panel>('none');
   const [titleError, setTitleError] = useState(false);
-  const [dayError, setDayError] = useState(false);
   const [newGroup, setNewGroup] = useState<string | null>(null);
-  const [typedDate, setTypedDate] = useState('');
   const [history, setHistory] = useState<TaskEvent[] | null>(null);
+  const latest = useRef(f);
+  latest.current = f;
 
-  const up = (p: Partial<TaskForm>) => setF((x) => ({ ...x, ...p }));
-  const toggle = (p: Panel) => setPanel((c) => (c === p ? 'none' : p));
-  const tomorrow = addDays(today, 1);
-  const other = !!f.date && f.date !== today && f.date !== tomorrow;
-  const group = f.groupId ? data.groups.find((g) => g.id === f.groupId) : undefined;
-  const whenLabel = !f.date ? tr.noDate : f.date === today ? tr.today : f.date === tomorrow ? tr.tomorrow : fmtDate(f.date);
-  const daysLabel = [...f.weekdays].sort().map((d) => tr.dayLetters[d]).join(' ');
+  // An existing task saves on every change, so editing never needs a save button.
+  const persist = (next: TaskForm) => {
+    if (task && next.title.trim()) {
+      if (next.reminderMin !== null && next.time) ensureReminderPermission().catch(() => {});
+      saveForm(task.id, next);
+    }
+  };
+  const up = (p: Partial<TaskForm>) => {
+    const next = { ...latest.current, ...p };
+    if (next.repeat && !next.weekdays.length && !series) next.repeat = false;
+    latest.current = next;
+    setF(next);
+    persist(next);
+  };
 
-  const chooseDate = async () => {
-    const picked = await pickDate(f.date, today);
-    if (picked) up({ date: picked });
+  const finish = (fromButton = false) => {
+    const cur = latest.current;
+    if (!cur.title.trim()) {
+      if (!task && fromButton) setTitleError(true);
+      else closeSheet();
+      return;
+    }
+    if (!task) {
+      if (cur.reminderMin !== null && cur.time) ensureReminderPermission().catch(() => {});
+      saveForm(null, cur);
+    } else persist(cur);
+    closeSheet();
   };
-  const chooseTime = async () => {
-    const picked = await pickTime(f.time);
-    if (picked) up({ time: picked, reminderMin: f.reminderMin ?? 0 });
-  };
+
+  const days = [...weekDays(today), ...weekDays(addDays(today, 7))];
+  const beyond = !!f.date && !days.includes(f.date);
+  const [hh, mm] = f.time ? f.time.split(':') : [null, null];
+  const minutes = MINUTES.includes(mm ?? '') || !mm ? MINUTES : [...MINUTES, mm].sort();
+  const canRepeat = !task || !!series;
+
+  const setHour = (h: number) => up({ time: `${pad(h)}:${mm ?? '00'}`, reminderMin: f.time ? f.reminderMin : 0 });
+  const setMinute = (m: string) => up({ time: `${hh ?? '09'}:${m}`, reminderMin: f.time ? f.reminderMin : 0 });
   const makeGroup = () => {
     const g = newGroup ? addGroup(newGroup) : null;
     if (g) up({ groupId: g.id });
     setNewGroup(null);
   };
 
-  const save = () => {
-    if (!f.title.trim()) {
-      setTitleError(true);
-      return;
-    }
-    if (f.repeat && !f.weekdays.length) {
-      setPanel('repeat');
-      setDayError(true);
-      return;
-    }
-    if (f.reminderMin !== null && f.time) ensureReminderPermission().catch(() => {});
-    saveForm(task?.id ?? null, f);
-    closeSheet();
-  };
-
   return (
-    <Modal visible transparent animationType="fade" statusBarTranslucent onRequestClose={closeSheet}>
+    <Modal visible transparent animationType="fade" statusBarTranslucent onRequestClose={() => finish()}>
       <KeyboardAvoidingView behavior="padding" style={s.flex}>
-        <Pressable style={[s.flex, { backgroundColor: t.scrim }]} onPress={closeSheet} accessibilityRole="button" accessibilityLabel={tr.cancel} />
-        <View style={[s.sheet, { backgroundColor: t.paper, paddingBottom: insets.bottom + 12 }]}>
+        <Pressable style={[s.flex, { backgroundColor: t.scrim }]} onPress={() => finish()} accessibilityRole="button" accessibilityLabel={tr.done} />
+        <View style={[s.sheet, { backgroundColor: t.paper, paddingBottom: insets.bottom + 10 }]}>
           <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
             <View style={s.titleRow}>
               <TextInput
                 value={f.title}
                 onChangeText={(title) => {
-                  up({ title });
+                  latest.current = { ...latest.current, title };
+                  setF(latest.current);
                   setTitleError(false);
                 }}
-                onSubmitEditing={save}
-                submitBehavior="submit"
+                onEndEditing={() => persist(latest.current)}
+                onSubmitEditing={task ? undefined : () => finish(true)}
+                submitBehavior={task ? 'blurAndSubmit' : 'submit'}
                 returnKeyType="done"
                 autoFocus={!task}
                 placeholder={titleError ? tr.needTitle : tr.sheetTitlePh}
@@ -128,166 +139,167 @@ function SheetBody() {
                 style={[s.titleInput, { color: t.ink }]}
                 accessibilityLabel={tr.sheetTitlePh}
               />
-              <Pressable
-                onPress={save}
-                hitSlop={6}
-                accessibilityRole="button"
-                accessibilityLabel={task ? tr.save : tr.add}
-                style={[s.send, { backgroundColor: f.title.trim() ? t.accent : t.wash }]}
-              >
+              <Pressable onPress={() => finish(true)} hitSlop={6} accessibilityRole="button" accessibilityLabel={task ? tr.done : tr.add} style={[s.send, { backgroundColor: f.title.trim() ? t.accent : t.wash }]}>
                 <Text style={[s.sendT, { color: f.title.trim() ? t.onAccent : t.soft }]}>✓</Text>
               </Pressable>
             </View>
 
-            <View style={s.worth}>
-              <Text style={[s.worthT, { color: t.mute }]}>{tr.worth}</Text>
-              {[1, 2, 3, 4, 5].map((n) => (
-                <Pressable
-                  key={n}
-                  onPress={() => up({ points: n as Points })}
-                  hitSlop={3}
-                  accessibilityRole="radio"
-                  accessibilityState={{ selected: f.points === n }}
-                  accessibilityLabel={tr.ptsLabel(n)}
-                  style={[s.point, { backgroundColor: n <= f.points ? t.accent : t.wash }]}
-                >
-                  <Text style={[s.pointT, { color: n <= f.points ? t.onAccent : t.mute }]}>{n}</Text>
-                </Pressable>
-              ))}
+            <View style={s.inline}>
+              <Label text={tr.worth} t={t} />
+              <View style={s.points}>
+                {[1, 2, 3, 4, 5].map((n) => (
+                  <Pressable
+                    key={n}
+                    onPress={() => up({ points: n as Points })}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: f.points === n }}
+                    accessibilityLabel={tr.ptsLabel(n)}
+                    style={[s.point, { backgroundColor: n <= f.points ? t.accent : t.wash }]}
+                  >
+                    <Text style={[s.pointT, { color: n <= f.points ? t.onAccent : t.mute }]}>{n}</Text>
+                  </Pressable>
+                ))}
+              </View>
             </View>
 
-            <View style={s.pills}>
-              {!f.repeat || series ? <Pill label={whenLabel} set={!!f.date} open={panel === 'when'} onPress={() => toggle('when')} t={t} /> : null}
-              <Pill label={group?.name ?? tr.group} set={!!group} open={panel === 'group'} color={group ? groupColor(t, group.color) : undefined} onPress={() => toggle('group')} t={t} />
-              {f.date || f.repeat ? (
-                <Pill
-                  label={f.time ? `${f.time}${f.reminderMin !== null ? ` · ${tr.reminderLabel}` : ''}` : tr.time}
-                  set={!!f.time}
-                  open={panel === 'time'}
-                  onPress={() => toggle('time')}
-                  t={t}
-                />
-              ) : null}
-              {!task || series ? (
-                <Pill label={f.repeat ? `${tr.repeatShort} ${daysLabel}` : tr.repeatShort} set={f.repeat} open={panel === 'repeat'} onPress={() => toggle('repeat')} t={t} />
-              ) : null}
-            </View>
-
-            {panel === 'when' ? (
+            {!f.repeat || series ? (
               <View>
-                <View style={s.wrap}>
-                  <Chip label={tr.today} on={f.date === today} onPress={() => up({ date: today })} />
-                  <Chip label={tr.tomorrow} on={f.date === tomorrow} onPress={() => up({ date: tomorrow })} />
-                  {!f.repeat ? <Chip label={tr.noDate} on={!f.date} onPress={() => up({ date: null, time: null, reminderMin: null })} /> : null}
-                  {hasNativePickers ? <Chip label={other ? fmtDate(f.date as string) : tr.otherDate} on={other} onPress={chooseDate} /> : null}
-                </View>
-                {!hasNativePickers ? (
-                  <TextInput
-                    value={typedDate}
-                    onChangeText={(v) => {
-                      setTypedDate(v);
-                      if (VALID_DATE.test(v) && v >= today) up({ date: v });
-                    }}
-                    placeholder={`${tr.otherDate}: ${tr.datePh}`}
-                    placeholderTextColor={t.soft}
-                    style={[s.typed, { color: t.ink, backgroundColor: t.wash }]}
-                    accessibilityLabel={tr.otherDate}
-                  />
-                ) : null}
-              </View>
-            ) : null}
-
-            {panel === 'group' ? (
-              <View>
-                <View style={s.wrap}>
-                  {data.groups.map((g) => (
-                    <Chip key={g.id} label={g.name} color={g.color} on={f.groupId === g.id} onPress={() => up({ groupId: f.groupId === g.id ? null : g.id })} />
-                  ))}
-                  {newGroup === null ? <Chip label={tr.newGroupChip} onPress={() => setNewGroup('')} /> : null}
-                </View>
-                {newGroup !== null ? (
-                  <View style={[s.inline, { backgroundColor: t.wash }]}>
-                    <Dot />
-                    <TextInput
-                      value={newGroup}
-                      onChangeText={setNewGroup}
-                      onSubmitEditing={makeGroup}
-                      autoFocus
-                      maxLength={24}
-                      placeholder={tr.groupNamePh}
-                      placeholderTextColor={t.soft}
-                      style={[s.inlineIn, { color: t.ink }]}
-                    />
-                    <Quiet label={tr.create} onPress={makeGroup} t={t} />
-                  </View>
-                ) : null}
-              </View>
-            ) : null}
-
-            {panel === 'time' ? (
-              <View style={s.col}>
-                <View style={s.wrap}>
-                  {hasNativePickers ? (
-                    <Chip label={f.time ?? tr.setTime} on={!!f.time} onPress={chooseTime} />
-                  ) : (
-                    <TextInput
-                      defaultValue={f.time ?? ''}
-                      onChangeText={(v) => {
-                        if (VALID_TIME.test(v)) up({ time: v, reminderMin: f.reminderMin ?? 0 });
-                        else if (!v) up({ time: null, reminderMin: null });
-                      }}
-                      placeholder={tr.timePh}
-                      placeholderTextColor={t.soft}
-                      style={[s.typed, s.typedTime, { color: t.ink, backgroundColor: t.wash }]}
-                      accessibilityLabel={tr.time}
-                    />
-                  )}
-                  {f.time && hasNativePickers ? <Chip label={tr.clear} onPress={() => up({ time: null, reminderMin: null })} /> : null}
-                </View>
-                {f.time ? (
-                  <View style={s.wrap}>
-                    {tr.reminderOpts.map((o) => (
-                      <Chip key={o.l} label={o.l} on={f.reminderMin === o.v} onPress={() => up({ reminderMin: o.v })} />
+                <Label text={tr.when} t={t} />
+                <View style={s.rows}>
+                  <View style={s.line}>
+                    {tr.dayLetters.map((l) => (
+                      <Text key={l} style={[s.head7, { color: t.soft }]}>{l}</Text>
                     ))}
                   </View>
-                ) : null}
+                  {chunk(days, 7).map((week) => (
+                    <View key={week[0]} style={s.line}>
+                      {week.map((d) => (
+                        <Cell
+                          key={d}
+                          label={String(parseIso(d).getDate())}
+                          a11y={d === today ? tr.today : `${tr.days[weekday(d)]} ${fmtDate(d)}`}
+                          on={f.date === d}
+                          off={d < today}
+                          onPress={() => up({ date: d })}
+                          t={t}
+                        />
+                      ))}
+                    </View>
+                  ))}
+                </View>
+                <View style={s.row}>
+                  {!f.repeat ? <Cell wide label={tr.noDate} on={!f.date} onPress={() => up({ date: null, time: null, reminderMin: null })} t={t} /> : null}
+                  {hasNativePickers ? (
+                    <Cell
+                      wide
+                      label={beyond ? fmtDate(f.date as string) : tr.otherDate}
+                      on={beyond}
+                      onPress={async () => {
+                        const picked = await pickDate(f.date, today);
+                        if (picked) up({ date: picked });
+                      }}
+                      t={t}
+                    />
+                  ) : null}
+                </View>
               </View>
             ) : null}
 
-            {panel === 'repeat' ? (
-              <View style={s.col}>
-                <View style={s.days}>
+            {f.date || f.repeat ? (
+              <View>
+                <Label text={tr.time} t={t} />
+                <View style={s.rows}>
+                  {chunk(HOURS, 6).map((row) => (
+                    <View key={row[0]} style={s.line}>
+                      {row.map((h) => (
+                        <Cell key={h} label={pad(h)} on={hh === pad(h)} onPress={() => setHour(h)} t={t} a11y={`${h}:00`} />
+                      ))}
+                    </View>
+                  ))}
+                  <View style={s.line}>
+                    {minutes.map((m) => (
+                      <Cell key={m} label={`:${m}`} on={mm === m} onPress={() => setMinute(m)} t={t} a11y={`${m} דקות`} />
+                    ))}
+                  </View>
+                </View>
+                <View style={s.row}>
+                  <Cell wide label={tr.noTime} on={!f.time} onPress={() => up({ time: null, reminderMin: null })} t={t} />
+                  {hasNativePickers ? (
+                    <Cell
+                      wide
+                      label={tr.otherTime}
+                      onPress={async () => {
+                        const picked = await pickTime(f.time);
+                        if (picked) up({ time: picked, reminderMin: f.time ? f.reminderMin : 0 });
+                      }}
+                      t={t}
+                    />
+                  ) : null}
+                </View>
+              </View>
+            ) : null}
+
+            {f.time ? (
+              <View>
+                <Label text={tr.reminderLabel} t={t} />
+                <View style={s.row}>
+                  {tr.reminderOpts.map((o) => (
+                    <Cell key={o.l} wide label={o.l} on={f.reminderMin === o.v} onPress={() => up({ reminderMin: o.v })} t={t} />
+                  ))}
+                </View>
+              </View>
+            ) : null}
+
+            <View>
+              <Label text={tr.group} t={t} />
+              <View style={s.row}>
+                <Cell wide label={tr.noGroup} on={!f.groupId} onPress={() => up({ groupId: null })} t={t} />
+                {data.groups.map((g) => (
+                  <Cell key={g.id} wide label={g.name} color={groupColor(t, g.color)} on={f.groupId === g.id} onPress={() => up({ groupId: g.id })} t={t} />
+                ))}
+                {newGroup === null ? <Cell wide label={tr.newGroupChip} onPress={() => setNewGroup('')} t={t} /> : null}
+              </View>
+              {newGroup !== null ? (
+                <View style={[s.newGroup, { backgroundColor: t.wash }]}>
+                  <TextInput
+                    value={newGroup}
+                    onChangeText={setNewGroup}
+                    onSubmitEditing={makeGroup}
+                    autoFocus
+                    maxLength={24}
+                    placeholder={tr.groupNamePh}
+                    placeholderTextColor={t.soft}
+                    style={[s.newGroupIn, { color: t.ink }]}
+                  />
+                  <Pressable onPress={makeGroup} hitSlop={8}>
+                    <Text style={[s.quiet, { color: t.accent }]}>{tr.create}</Text>
+                  </Pressable>
+                </View>
+              ) : null}
+            </View>
+
+            {canRepeat ? (
+              <View>
+                <Label text={tr.repeatLabel} t={t} />
+                <View style={s.line}>
                   {tr.dayLetters.map((l, i) => {
                     const on = f.repeat && f.weekdays.includes(i);
                     return (
-                      <Pressable
+                      <Cell
                         key={i}
+                        label={l}
+                        a11y={tr.days[i]}
+                        on={on}
                         onPress={() => {
-                          setDayError(false);
                           const weekdays = on ? f.weekdays.filter((x) => x !== i) : f.repeat ? [...f.weekdays, i] : [i];
+                          if (series && !weekdays.length) return;
                           up({ weekdays, repeat: !!series || weekdays.length > 0 });
                         }}
-                        accessibilityRole="checkbox"
-                        accessibilityState={{ checked: on }}
-                        accessibilityLabel={tr.days[i]}
-                        style={[s.day, { backgroundColor: on ? t.ink : t.wash }]}
-                      >
-                        <Text style={[s.dayT, { color: on ? t.paper : t.ink }]}>{l}</Text>
-                      </Pressable>
+                        t={t}
+                      />
                     );
                   })}
                 </View>
-                {dayError ? <Text style={[s.err, { color: t.ink }]}>{tr.repeatNeedDay}</Text> : null}
-                {series && !series.endedAt ? (
-                  <Quiet
-                    label={tr.endSeries}
-                    onPress={() => {
-                      closeSheet();
-                      endSeries(series.id, task?.date && task.date > today ? task.date : today);
-                    }}
-                    t={t}
-                  />
-                ) : null}
               </View>
             ) : null}
 
@@ -295,33 +307,25 @@ function SheetBody() {
               <View style={s.links}>
                 {task.date ? (
                   <>
-                    <Quiet
-                      label={tr.removeFromDay}
-                      onPress={() => {
-                        closeSheet();
-                        removeFromDay(task.id);
-                      }}
-                      t={t}
-                    />
-                    <Quiet
-                      label={tr.moveTomorrow}
-                      onPress={() => {
-                        closeSheet();
-                        moveToTomorrow(task.id);
-                      }}
-                      t={t}
-                    />
+                    <Pressable onPress={() => { closeSheet(); removeFromDay(task.id); }} hitSlop={8} accessibilityRole="button">
+                      <Text style={[s.quiet, { color: t.mute }]}>{tr.removeFromDay}</Text>
+                    </Pressable>
+                    <Pressable onPress={() => { closeSheet(); moveToTomorrow(task.id); }} hitSlop={8} accessibilityRole="button">
+                      <Text style={[s.quiet, { color: t.mute }]}>{tr.moveTomorrow}</Text>
+                    </Pressable>
                   </>
                 ) : null}
-                <Quiet label={tr.history} onPress={() => setHistory(history ? null : taskHistory(task.id))} t={t} />
-                <Quiet
-                  label={tr.deleteTask}
-                  onPress={() => {
-                    closeSheet();
-                    deleteTask(task.id);
-                  }}
-                  t={t}
-                />
+                {series && !series.endedAt ? (
+                  <Pressable onPress={() => { closeSheet(); endSeries(series.id, task.date && task.date > today ? task.date : today); }} hitSlop={8} accessibilityRole="button">
+                    <Text style={[s.quiet, { color: t.mute }]}>{tr.endSeries}</Text>
+                  </Pressable>
+                ) : null}
+                <Pressable onPress={() => setHistory(history ? null : taskHistory(task.id))} hitSlop={8} accessibilityRole="button">
+                  <Text style={[s.quiet, { color: t.mute }]}>{tr.history}</Text>
+                </Pressable>
+                <Pressable onPress={() => { closeSheet(); deleteTask(task.id); }} hitSlop={8} accessibilityRole="button">
+                  <Text style={[s.quiet, { color: t.mute }]}>{tr.deleteTask}</Text>
+                </Pressable>
               </View>
             ) : null}
 
@@ -343,31 +347,28 @@ function SheetBody() {
 
 const s = StyleSheet.create({
   flex: { flex: 1 },
-  sheet: { maxHeight: '85%', borderTopStartRadius: 20, borderTopEndRadius: 20 },
-  content: { paddingHorizontal: 18, paddingTop: 14, gap: 12 },
+  sheet: { maxHeight: '92%', borderTopStartRadius: 20, borderTopEndRadius: 20 },
+  content: { paddingHorizontal: 16, paddingTop: 12, gap: 12 },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  titleInput: { flex: 1, fontFamily: font.medium, fontSize: 19, paddingVertical: 6 },
-  send: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
-  sendT: { fontFamily: font.bold, fontSize: 19, lineHeight: 24 },
-  worth: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  worthT: { fontFamily: font.regular, fontSize: 14, marginEnd: 4 },
+  titleInput: { flex: 1, fontFamily: font.medium, fontSize: 18, paddingVertical: 4 },
+  send: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
+  sendT: { fontFamily: font.bold, fontSize: 18, lineHeight: 23 },
+  label: { fontFamily: font.regular, fontSize: 12.5, marginBottom: 5 },
+  inline: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  points: { flexDirection: 'row', gap: 6 },
   point: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
   pointT: { fontFamily: font.semibold, fontSize: 14, fontVariant: ['lining-nums'] },
-  pills: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  pill: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999 },
-  pillDot: { width: 8, height: 8, borderRadius: 4 },
-  pillT: { fontSize: 14, fontVariant: ['lining-nums'] },
-  wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, alignItems: 'center' },
-  col: { gap: 8 },
-  inline: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 10, paddingHorizontal: 12, marginTop: 8 },
-  inlineIn: { flex: 1, fontFamily: font.regular, fontSize: 15.5, paddingVertical: 7 },
-  days: { flexDirection: 'row', gap: 4 },
-  day: { flex: 1, height: 36, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
-  dayT: { fontFamily: font.semibold, fontSize: 14 },
-  err: { fontFamily: font.semibold, fontSize: 14 },
-  typed: { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7, marginTop: 8, fontFamily: font.regular, fontSize: 15 },
-  typedTime: { marginTop: 0, minWidth: 110 },
-  links: { flexDirection: 'row', flexWrap: 'wrap', gap: 16, paddingTop: 2 },
+  rows: { gap: 4 },
+  line: { flexDirection: 'row', gap: 4 },
+  head7: { flex: 1, textAlign: 'center', fontFamily: font.regular, fontSize: 11.5 },
+  row: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 4 },
+  cell: { flex: 1, height: 32, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  chip: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 32, paddingHorizontal: 11, borderRadius: 8 },
+  cellT: { fontSize: 14, fontVariant: ['tabular-nums', 'lining-nums'] },
+  dot: { width: 8, height: 8, borderRadius: 4 },
+  newGroup: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 8, paddingHorizontal: 10, marginTop: 6 },
+  newGroupIn: { flex: 1, fontFamily: font.regular, fontSize: 15, paddingVertical: 6 },
+  links: { flexDirection: 'row', flexWrap: 'wrap', gap: 16, paddingTop: 4 },
   quiet: { fontFamily: font.medium, fontSize: 14 },
   history: { gap: 3 },
   historyT: { fontFamily: font.regular, fontSize: 13.5, fontVariant: ['lining-nums'] },

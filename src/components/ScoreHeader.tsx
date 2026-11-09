@@ -1,3 +1,4 @@
+import Constants from 'expo-constants';
 import React, { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import Animated, { interpolateColor, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
@@ -73,7 +74,7 @@ export const ScoreHeader = React.forwardRef<any, {
     <Animated.View style={[s.wrap, bgStyle]}>
       <View style={s.top}>
         <Text style={[s.date, { color: fg }]}>{`${isToday ? `${tr.today}, ` : ''}יום ${fmtDay(date)}, ${fmtDate(date)}`}</Text>
-        {isToday ? null : <TextLink label={tr.backToToday} onPress={onToday} />}
+        {isToday ? <Text style={[s.rank, { color: fg, opacity: 0.45 }]}>{tr.versionShort(Constants.expoConfig?.version ?? '')}</Text> : <TextLink label={tr.backToToday} onPress={onToday} />}
       </View>
       <View style={s.score}>
         <View ref={scoreRef} collapsable={false}>

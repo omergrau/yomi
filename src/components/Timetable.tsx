@@ -221,7 +221,7 @@ export function Timetable() {
               <View style={s.info}>
                 <Text style={[s.slotT, { color: t.ink }]}>{r.title}</Text>
                 <Text style={[s.slotM, { color: t.mute }]}>
-                  {[r.place, r.reminderMin !== null && remind ? `${tr.reminderLabel} ${remind.l}` : null].filter(Boolean).join(' · ')}
+                  {[r.place, r.reminderMin !== null && remind ? `${tr.reminderLabel}: ${remind.l}` : null].filter(Boolean).join(' · ')}
                 </Text>
               </View>
             </Pressable>

@@ -8,6 +8,8 @@ const { DatabaseSync } = (process as any).getBuiltinModule("node:sqlite");
 vi.mock('expo-sqlite', () => ({
   openDatabaseSync: () => {
     const db = new DatabaseSync(':memory:');
+    // Lets a test start from a database written by an older version of the app.
+    (globalThis as any).__seedDb?.(db);
     return {
       execSync: (sql: string) => db.exec(sql),
       runSync: (sql: string, params: unknown[] = []) => db.prepare(sql).run(...params),
@@ -34,6 +36,33 @@ const NOW = new Date(2026, 10, 6, 9).getTime();
 const TODAY = '2026-11-06';
 
 describe('phone database', () => {
+  it('keeps everything from the first version after an update', async () => {
+    const { MIGRATIONS, openRepo } = await import('./repo.native');
+    (globalThis as any).__seedDb = (db: any) => {
+      db.exec(MIGRATIONS[0]);
+      db.exec('PRAGMA user_version = 1');
+      db.prepare('INSERT INTO groups_ (id,name,color,sort) VALUES (?,?,?,?)').run('g1', 'תואר', 1, 1);
+      db.prepare(`INSERT INTO tasks (id,title,group_id,points,date,sort,time,reminder_min,deferrals,done_at,recurring_id,occurrence_date,created_at,deleted_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run('t1', 'משימה ישנה', 'g1', 4, TODAY, 1, '10:00', 0, 2, NOW, null, null, NOW, null);
+      db.prepare(`INSERT INTO recurring (id,title,group_id,points,weekdays,time,reminder_min,start_date,ended_at) VALUES (?,?,?,?,?,?,?,?,?)`)
+        .run('r1', 'אימון', null, 3, '[0,2]', '07:00', 10, TODAY, null);
+      db.prepare('INSERT INTO day_logs (date,planned,done) VALUES (?,?,?)').run('2026-11-05', 8, 6);
+      db.prepare('INSERT INTO events (id,task_id,type,from_date,to_date,at) VALUES (?,?,?,?,?,?)').run('e1', 't1', 'completed', TODAY, TODAY, NOW);
+      db.prepare('INSERT INTO meta (key,value) VALUES (?,?)').run('theme', 'dark');
+    };
+    const repo = openRepo();
+    delete (globalThis as any).__seedDb;
+    const d = repo.load();
+    expect(d.tasks.t1).toMatchObject({ title: 'משימה ישנה', groupId: 'g1', points: 4, time: '10:00', deferrals: 2, doneAt: NOW });
+    expect(d.groups[0].name).toBe('תואר');
+    expect(d.recurring[0]).toMatchObject({ title: 'אימון', weekdays: [0, 2], time: '07:00', endTime: null, place: null });
+    expect(d.dayLogs['2026-11-05']).toEqual({ date: '2026-11-05', planned: 8, done: 6 });
+    expect(d.meta.theme).toBe('dark');
+    expect(d.lists).toEqual([]);
+    expect(repo.eventsFor('t1')).toHaveLength(1);
+    expect(L.totalPoints(d)).toBe(4);
+  });
+
   it('stores and reloads everything exactly', async () => {
     const { openRepo } = await import('./repo.native');
     const repo = openRepo();

@@ -3,7 +3,7 @@ import type { AppData, Change, Checklist, DayLog, Group, Recurring, Task, TaskEv
 import type { Repo } from './repoTypes';
 
 // Each entry upgrades the database by one version. Never edit an entry after it has shipped; add a new one.
-const MIGRATIONS = [
+export const MIGRATIONS = [
   `
   CREATE TABLE tasks (
     id TEXT PRIMARY KEY NOT NULL, title TEXT NOT NULL, group_id TEXT, points INTEGER NOT NULL,
