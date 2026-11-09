@@ -28,7 +28,7 @@ import Animated, {
 import { scheduleOnRN } from 'react-native-worklets';
 import { addDays, parseIso, weekDays } from '../domain/dates';
 import { dayStats, dayTasks, levelInfo, poolTasks, streak as streakOf, totalPoints } from '../domain/logic';
-import type { Group, Recurring, Task } from '../domain/types';
+import type { Group, Points, Recurring, Task } from '../domain/types';
 import { t as tr } from '../i18n';
 import { buzzLift, dropOnDay, moveToTomorrow, openSheet, quickAdd, removeFromDay, setView, toggleDone, useApp } from '../store';
 import { RTL, font, useTheme, type Theme } from '../theme';
@@ -262,27 +262,86 @@ function PoolRow({ task, index, d, onLift, onDrop }: { task: Task; index: number
   );
 }
 
-function QuickAdd({ t }: { t: Theme }) {
+/**
+ * Adds to the day being viewed. Once typing starts, urgency and topic appear right under the field,
+ * so a task gets both without opening anything. The choice stays for the next task until the field is left.
+ */
+function QuickAdd({ t, groups }: { t: Theme; groups: Group[] }) {
   const [text, setText] = useState('');
+  const [points, setPoints] = useState<Points>(3);
+  const [groupId, setGroupId] = useState<string | null>(null);
   const submit = () => {
-    quickAdd(text);
+    if (!text.trim()) return;
+    quickAdd(text, points, groupId);
     setText('');
   };
+  const open = !!text.trim();
   return (
-    <View style={[s.quick, { backgroundColor: t.wash }]}>
-      <Text style={[s.quickPlus, { color: t.accent }]}>+</Text>
-      <TextInput
-        value={text}
-        onChangeText={setText}
-        onSubmitEditing={submit}
-        submitBehavior="submit"
-        returnKeyType="done"
-        maxLength={120}
-        placeholder={tr.quickAdd}
-        placeholderTextColor={t.mute}
-        style={[s.quickIn, { color: t.ink }]}
-        accessibilityLabel={tr.quickAdd}
-      />
+    <View style={[s.quickBox, { backgroundColor: t.wash }]}>
+      <View style={s.quick}>
+        <Text style={[s.quickPlus, { color: t.accent }]}>+</Text>
+        <TextInput
+          value={text}
+          onChangeText={setText}
+          onSubmitEditing={submit}
+          onBlur={() => {
+            if (!text.trim()) {
+              setPoints(3);
+              setGroupId(null);
+            }
+          }}
+          submitBehavior="submit"
+          returnKeyType="done"
+          maxLength={120}
+          placeholder={tr.quickAdd}
+          placeholderTextColor={t.mute}
+          style={[s.quickIn, { color: t.ink }]}
+          accessibilityLabel={tr.quickAdd}
+        />
+        {open ? (
+          <Pressable onPress={submit} hitSlop={8} style={[s.quickGo, { backgroundColor: t.accent }]} accessibilityRole="button" accessibilityLabel={tr.add}>
+            <Text style={[s.quickGoT, { color: t.onAccent }]}>✓</Text>
+          </Pressable>
+        ) : null}
+      </View>
+      {open ? (
+        <View style={s.quickOpts}>
+          <View style={s.quickRow}>
+            <Text style={[s.quickLabel, { color: t.mute }]}>{tr.worth}</Text>
+            {[1, 2, 3, 4, 5].map((n) => (
+              <Pressable
+                key={n}
+                onPress={() => setPoints(n as Points)}
+                hitSlop={3}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: points === n }}
+                accessibilityLabel={tr.ptsLabel(n)}
+                style={[s.quickPt, { backgroundColor: n <= points ? t.accent : t.paper }]}
+              >
+                <Text style={[s.quickPtT, { color: n <= points ? t.onAccent : t.mute }]}>{n}</Text>
+              </Pressable>
+            ))}
+          </View>
+          <ScrollView horizontal keyboardShouldPersistTaps="handled" showsHorizontalScrollIndicator={false} contentContainerStyle={s.quickRow}>
+            <Text style={[s.quickLabel, { color: t.mute }]}>{tr.topic}</Text>
+            {[{ id: null, name: tr.noTopic, color: undefined as number | undefined }, ...groups].map((g) => {
+              const on = groupId === g.id;
+              return (
+                <Pressable
+                  key={g.id ?? 'none'}
+                  onPress={() => setGroupId(g.id)}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: on }}
+                  style={[s.quickChip, { backgroundColor: on ? t.ink : t.paper }]}
+                >
+                  {g.id ? <Dot color={g.color} size={7} /> : null}
+                  <Text style={[s.quickChipT, { color: on ? t.paper : t.ink }]}>{g.name}</Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -612,7 +671,7 @@ export default function TodayScreen() {
       </View>
 
       <AnimatedScroll ref={scrollRef} onScroll={onScroll} scrollEventThrottle={16} style={s.flex} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: PEEK + 28 + (drawerOpen ? HALF : 0) }}>
-        <QuickAdd t={t} />
+        <QuickAdd t={t} groups={data.groups} />
         <View ref={listRef} collapsable={false} style={{ minHeight: doneRows.length ? 64 : 120 }}>
           {openRows.length ? (
             openRows.map((task, index) => (
@@ -726,7 +785,17 @@ const s = StyleSheet.create({
   cellFill: { height: '100%' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, minHeight: 48 },
   rowMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6, minHeight: 48 },
-  quick: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 14, marginTop: 6, marginBottom: 2, paddingHorizontal: 12, borderRadius: 10 },
+  quickBox: { marginHorizontal: 14, marginTop: 6, marginBottom: 2, borderRadius: 10, paddingHorizontal: 12 },
+  quick: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  quickGo: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  quickGoT: { fontFamily: font.bold, fontSize: 14, lineHeight: 18 },
+  quickOpts: { gap: 6, paddingBottom: 9 },
+  quickRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  quickLabel: { fontFamily: font.regular, fontSize: 12.5, minWidth: 44 },
+  quickPt: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
+  quickPtT: { fontFamily: font.semibold, fontSize: 12.5, fontVariant: ['lining-nums'] },
+  quickChip: { flexDirection: 'row', alignItems: 'center', gap: 5, height: 26, paddingHorizontal: 10, borderRadius: 13 },
+  quickChipT: { fontFamily: font.regular, fontSize: 13 },
   quickPlus: { fontFamily: font.semibold, fontSize: 20, lineHeight: 24 },
   quickIn: { flex: 1, fontFamily: font.regular, fontSize: 14.5, paddingVertical: 6 },
   doneHead: { fontFamily: font.semibold, fontSize: 12.5, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 },

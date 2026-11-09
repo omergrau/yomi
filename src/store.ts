@@ -194,11 +194,11 @@ export function saveForm(id: string | null, form: TaskForm) {
 }
 
 /** The fastest path: a title alone puts a task on the day being viewed. */
-export function quickAdd(title: string) {
+export function quickAdd(title: string, points: Points = 3, groupId: string | null = null) {
   const clean = title.trim();
   if (!clean) return;
   const date = S.view >= S.today ? S.view : S.today;
-  commit(L.createTask(S.data, { title: clean, groupId: null, points: 3, date, time: null, reminderMin: null }, Date.now()));
+  commit(L.createTask(S.data, { title: clean, groupId, points, date, time: null, reminderMin: null }, Date.now()));
   buzz('light');
 }
 
