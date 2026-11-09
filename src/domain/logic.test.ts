@@ -256,6 +256,25 @@ describe('reminders', () => {
   });
 });
 
+describe('urgency', () => {
+  it('puts more urgent tasks above less urgent ones, in the day and in the pool', () => {
+    let { d } = add(base(), 'low', { points: 1 });
+    ({ d } = add(d, 'high', { points: 5 }));
+    ({ d } = add(d, 'mid', { points: 3 }));
+    ({ d } = add(d, 'mid2', { points: 3 }));
+    expect(L.dayTasks(d, TODAY).map((t) => t.title)).toEqual(['high', 'mid', 'mid2', 'low']);
+    ({ d } = add(d, 'p1', { points: 2, date: null }));
+    ({ d } = add(d, 'p2', { points: 4, date: null }));
+    expect(L.poolTasks(d).map((t) => t.title)).toEqual(['p2', 'p1']);
+  });
+  it('keeps a manual order within the same urgency', () => {
+    let a = add(base(), 'a', { points: 3 });
+    const b = add(a.d, 'b', { points: 3 });
+    const d = apply(b.d, L.moveTask(b.d, b.id, TODAY, NOW, { index: 0 }));
+    expect(L.dayTasks(d, TODAY).map((t) => t.title)).toEqual(['b', 'a']);
+  });
+});
+
 describe('lists', () => {
   it('adds, ticks, removes and clears items', () => {
     let d = base();

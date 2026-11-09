@@ -73,11 +73,7 @@ export const ScoreHeader = React.forwardRef<any, {
     <Animated.View style={[s.wrap, bgStyle]}>
       <View style={s.top}>
         <Text style={[s.date, { color: fg }]}>{`${isToday ? `${tr.today}, ` : ''}יום ${fmtDay(date)}, ${fmtDate(date)}`}</Text>
-        {isToday ? (
-          <Text style={[s.rank, { color: fg }]}>{`${tr.level} ${level} · ${tr.streak} ${streak}`}</Text>
-        ) : (
-          <TextLink label={tr.backToToday} onPress={onToday} />
-        )}
+        {isToday ? null : <TextLink label={tr.backToToday} onPress={onToday} />}
       </View>
       <View style={s.score}>
         <View ref={scoreRef} collapsable={false}>

@@ -15,8 +15,10 @@ const event = (taskId: string, type: EventType, fromDate: string | null, toDate:
 
 export const alive = (d: AppData) => Object.values(d.tasks).filter((t) => !t.deletedAt);
 const bySort = (a: Task, b: Task) => a.sort - b.sort || a.createdAt - b.createdAt;
-export const dayTasks = (d: AppData, date: string) => alive(d).filter((t) => t.date === date).sort(bySort);
-export const poolTasks = (d: AppData) => alive(d).filter((t) => t.date === null && !t.doneAt).sort(bySort);
+/** More urgent tasks come first. Within the same urgency, the order the person set is kept. */
+const byUrgency = (a: Task, b: Task) => b.points - a.points || bySort(a, b);
+export const dayTasks = (d: AppData, date: string) => alive(d).filter((t) => t.date === date).sort(byUrgency);
+export const poolTasks = (d: AppData) => alive(d).filter((t) => t.date === null && !t.doneAt).sort(byUrgency);
 
 export type DayStats = { total: number; done: number; pct: number; count: number; doneCount: number; closed: boolean; streakKept: boolean; toStreak: number; left: number };
 

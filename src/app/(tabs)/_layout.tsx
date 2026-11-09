@@ -79,6 +79,11 @@ function Bar() {
 
   return (
     <View style={[s.bar, { backgroundColor: t.paper, borderTopColor: t.line }]}>
+      <View style={s.mid}>
+        <Pressable style={[s.add, { backgroundColor: t.accent }]} onPress={() => openSheet({ id: null })} accessibilityRole="button" accessibilityLabel={tr.nav.add}>
+          <Text style={[s.plus, { color: t.onAccent }]}>+</Text>
+        </Pressable>
+      </View>
       <GestureDetector gesture={pan}>
         <View style={s.wheel} accessibilityRole="tablist">
           {ROUTES.map((r, i) => (
@@ -96,11 +101,6 @@ function Bar() {
           <View pointerEvents="none" style={[s.dot, { backgroundColor: t.accent }]} />
         </View>
       </GestureDetector>
-      <View style={s.mid}>
-        <Pressable style={[s.add, { backgroundColor: t.accent }]} onPress={() => openSheet({ id: null })} accessibilityRole="button" accessibilityLabel={tr.nav.add}>
-          <Text style={[s.plus, { color: t.onAccent }]}>+</Text>
-        </Pressable>
-      </View>
     </View>
   );
 }
