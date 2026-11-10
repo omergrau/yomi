@@ -69,6 +69,11 @@ const TOOLS: Anthropic.Beta.BetaTool[] = [
     input_schema: { type: 'object', additionalProperties: false, required: ['task_id'], properties: { task_id: { type: 'string' } } },
   },
   {
+    name: 'cancel_weekly_once',
+    description: 'Cancel a single occurrence of a weekly timetable item, such as a cancelled lecture or a skipped training. Only that day goes away; the item keeps repeating on other weeks. Use a task_id with weekly: true from get_schedule (occurrences exist for the next 4 weeks).',
+    input_schema: { type: 'object', additionalProperties: false, required: ['task_id'], properties: { task_id: { type: 'string' } } },
+  },
+  {
     name: 'add_weekly',
     description: 'Add a fixed weekly item to the timetable, such as a lecture or training. It appears on its weekdays every week and reminds.',
     input_schema: {
@@ -140,6 +145,7 @@ How the app works:
 - Tasks belong to a day or wait in "my tasks" (המשימות שלי) without a day. Each has urgency 1-5, which is also the points it earns when done.
 - Timed tasks can have a length; when their time ends they complete themselves. Weekly items form the timetable (מערכת שעות).
 - Topics (נושאים) group tasks, for example תואר, עבודה, ספורט.
+- When a weekly item (lecture, training) is cancelled for one day, use cancel_weekly_once on that day's occurrence. Never delete or change the weekly item itself for a one-time change.
 - Checklists (רשימות) are plain lists with items to tick, such as a shopping list. They have no dates or points. Read them with get_lists before changing one, and match a list by its title.
 - The week starts on Sunday. The person is in Israel.
 

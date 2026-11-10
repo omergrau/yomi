@@ -138,6 +138,14 @@ export function deleteTask(ctx: Ctx, input: { task_id: string }): ActionResult {
   return { change: L.deleteTask(ctx.data, t.id, ctx.now), result: { deleted: t.id }, summary: `נמחקה: ${t.title}` };
 }
 
+/** Cancels one occurrence of a weekly item (a lesson or a training that will not happen this time). The series stays. */
+export function cancelWeeklyOnce(ctx: Ctx, input: { task_id: string }): ActionResult {
+  const t = ctx.data.tasks[input.task_id];
+  need(!!t && !t.deletedAt, 'no such task');
+  need(!!t.recurringId, 'this task is not a weekly item; use delete_task or update_task instead');
+  return { change: L.removeFromDay(ctx.data, t.id, ctx.now), result: { cancelled: t.id, date: t.date }, summary: `בוטל הפעם: ${t.title}${t.date ? ` (${t.date.slice(8)}/${t.date.slice(5, 7)})` : ''}` };
+}
+
 export type WeeklyInput = {
   title: string; weekdays: number[]; start: string; end: string | null; place: string | null; urgency: number | null; topic: string | null; reminder_min: number | null;
 };
@@ -248,6 +256,7 @@ export const ACTIONS = {
   create_list: createList,
   update_list: updateList,
   delete_list: deleteList,
+  cancel_weekly_once: cancelWeeklyOnce,
 } as const;
 
 export type ActionName = keyof typeof ACTIONS;

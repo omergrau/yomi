@@ -106,3 +106,25 @@ describe('fields the model leaves out', () => {
     expect(() => run(r.data, 'find_free_time', { from_date: TODAY, to_date: TODAY, duration_min: 30 })).not.toThrow();
   });
 });
+
+describe('cancelling one weekly occurrence', () => {
+  it('removes only that day and the series keeps repeating', () => {
+    let r = run(L.emptyData(), 'add_weekly', { title: 'אימון', weekdays: [3], start: '18:00' });
+    const occ = L.alive(r.data).filter((t) => t.recurringId).sort((a, b) => (a.date! < b.date! ? -1 : 1));
+    expect(occ.length).toBeGreaterThan(1);
+    r = run(r.data, 'cancel_weekly_once', { task_id: occ[0].id });
+    expect(r.summary).toContain('בוטל הפעם');
+    const left = L.alive(r.data).filter((t) => t.recurringId);
+    expect(left.map((t) => t.id)).not.toContain(occ[0].id);
+    expect(left.length).toBe(occ.length - 1);
+    expect(r.data.recurring[0].endedAt).toBeNull();
+    // Filling in the coming weeks again must not bring the cancelled day back.
+    const again = L.applyChange(r.data, L.materialize(r.data, TODAY, NOW + 1000));
+    expect(L.alive(again).filter((t) => t.recurringId).map((t) => t.date)).not.toContain(occ[0].date);
+  });
+
+  it('refuses a task that is not weekly', () => {
+    const r = run(L.emptyData(), 'add_task', { title: 'משהו', date: TODAY });
+    expect(() => run(r.data, 'cancel_weekly_once', { task_id: L.alive(r.data)[0].id })).toThrow();
+  });
+});

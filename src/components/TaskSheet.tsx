@@ -333,11 +333,18 @@ function SheetBody() {
 
             {task ? (
               <View style={s.links}>
+                {series ? (
+                  <Pressable onPress={() => { closeSheet(); removeFromDay(task.id); }} hitSlop={8} accessibilityRole="button">
+                    <Text style={[s.quiet, { color: t.accent }]}>{tr.cancelOnce}</Text>
+                  </Pressable>
+                ) : null}
                 {task.date ? (
                   <>
-                    <Pressable onPress={() => { closeSheet(); removeFromDay(task.id); }} hitSlop={8} accessibilityRole="button">
-                      <Text style={[s.quiet, { color: t.mute }]}>{tr.removeFromDay}</Text>
-                    </Pressable>
+                    {series ? null : (
+                      <Pressable onPress={() => { closeSheet(); removeFromDay(task.id); }} hitSlop={8} accessibilityRole="button">
+                        <Text style={[s.quiet, { color: t.mute }]}>{tr.removeFromDay}</Text>
+                      </Pressable>
+                    )}
                     <Pressable onPress={() => { closeSheet(); moveToTomorrow(task.id); }} hitSlop={8} accessibilityRole="button">
                       <Text style={[s.quiet, { color: t.mute }]}>{tr.moveTomorrow}</Text>
                     </Pressable>
@@ -351,9 +358,11 @@ function SheetBody() {
                 <Pressable onPress={() => setHistory(history ? null : taskHistory(task.id))} hitSlop={8} accessibilityRole="button">
                   <Text style={[s.quiet, { color: t.mute }]}>{tr.history}</Text>
                 </Pressable>
-                <Pressable onPress={() => { closeSheet(); deleteTask(task.id); }} hitSlop={8} accessibilityRole="button">
-                  <Text style={[s.quiet, { color: t.mute }]}>{tr.deleteTask}</Text>
-                </Pressable>
+                {series ? null : (
+                  <Pressable onPress={() => { closeSheet(); deleteTask(task.id); }} hitSlop={8} accessibilityRole="button">
+                    <Text style={[s.quiet, { color: t.mute }]}>{tr.deleteTask}</Text>
+                  </Pressable>
+                )}
               </View>
             ) : null}
 
