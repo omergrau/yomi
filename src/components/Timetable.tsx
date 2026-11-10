@@ -9,11 +9,11 @@ import { t as tr } from '../i18n';
 import { ensureReminderPermission } from '../notifications';
 import { hasNativePickers, pickTime } from '../pickers';
 import { endSeries, saveSlot, useApp, type SlotForm } from '../store';
-import { font, groupColor, useTheme, type Theme } from '../theme';
+import { font, useTheme, type Theme } from '../theme';
 import { Chip } from './ui';
+import { WeekGrid } from './WeekGrid';
 
 const VALID_TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
-const byTime = (a: Recurring, b: Recurring) => (a.time ?? '99') < (b.time ?? '99') ? -1 : 1;
 
 function TimeField({ value, label, onChange, t }: { value: string | null; label: string; onChange: (v: string | null) => void; t: Theme }) {
   if (hasNativePickers) {
@@ -184,54 +184,17 @@ function SlotSheet({ slot, day, onClose }: { slot: Recurring | null; day: number
 
 export function Timetable() {
   const t = useTheme();
-  const { data, today } = useApp();
-  const [day, setDay] = useState(() => weekday(today));
+  const { today } = useApp();
   const [editing, setEditing] = useState<{ slot: Recurring | null } | null>(null);
-  const groups = new Map(data.groups.map((g) => [g.id, g]));
-  const live = data.recurring.filter((r) => !r.endedAt);
-  const slots = live.filter((r) => r.weekdays.includes(day)).sort(byTime);
-
   return (
     <View style={s.flex}>
-      <View style={s.dayBar}>
-        {tr.dayLetters.map((l, i) => {
-          const on = i === day;
-          const has = live.some((r) => r.weekdays.includes(i));
-          return (
-            <Pressable key={i} onPress={() => setDay(i)} style={[s.dayTab, { backgroundColor: on ? t.ink : 'transparent' }]} accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={tr.days[i]}>
-              <Text style={[s.dayTabT, { color: on ? t.paper : t.ink }]}>{l}</Text>
-              <View style={[s.has, { backgroundColor: has ? (on ? t.paper : t.accent) : 'transparent' }]} />
-            </Pressable>
-          );
-        })}
-      </View>
-      <ScrollView contentContainerStyle={s.list}>
-        <Text style={[s.dayName, { color: t.ink }]}>{tr.dayName(tr.days[day])}</Text>
-        {!slots.length ? <Text style={[s.empty, { color: t.mute }]}>{tr.slotEmpty}</Text> : null}
-        {slots.map((r) => {
-          const g = r.groupId ? groups.get(r.groupId) : undefined;
-          const remind = tr.reminderOpts.find((o) => o.v === r.reminderMin);
-          return (
-            <Pressable key={r.id} onPress={() => setEditing({ slot: r })} style={[s.slot, { backgroundColor: t.wash }]} accessibilityRole="button" accessibilityLabel={`${r.title} ${r.time ?? ''}`}>
-              <View style={[s.bar, { backgroundColor: g ? groupColor(t, g.color) : t.accent }]} />
-              <View style={s.when}>
-                <Text style={[s.start, { color: t.ink }]}>{r.time ?? tr.noHour}</Text>
-                {r.endTime ? <Text style={[s.end, { color: t.mute }]}>{r.endTime}</Text> : null}
-              </View>
-              <View style={s.info}>
-                <Text style={[s.slotT, { color: t.ink }]}>{r.title}</Text>
-                <Text style={[s.slotM, { color: t.mute }]}>
-                  {[r.place, r.reminderMin !== null && remind ? `${tr.reminderLabel}: ${remind.l}` : null].filter(Boolean).join(' · ')}
-                </Text>
-              </View>
-            </Pressable>
-          );
-        })}
+      <WeekGrid onOpenSlot={(r) => setEditing({ slot: r })} />
+      <View style={[s.addBar, { borderTopColor: t.line }]}>
         <Pressable onPress={() => setEditing({ slot: null })} hitSlop={8} style={s.addRow} accessibilityRole="button">
           <Text style={[s.add, { color: t.accent }]}>{tr.slotAdd}</Text>
         </Pressable>
-      </ScrollView>
-      {editing ? <SlotSheet slot={editing.slot} day={day} onClose={() => setEditing(null)} /> : null}
+      </View>
+      {editing ? <SlotSheet slot={editing.slot} day={weekday(today)} onClose={() => setEditing(null)} /> : null}
     </View>
   );
 }
@@ -254,6 +217,7 @@ const s = StyleSheet.create({
   slotT: { fontFamily: font.semibold, fontSize: 16 },
   slotM: { fontFamily: font.regular, fontSize: 13.5, marginTop: 1 },
   addRow: { paddingVertical: 8 },
+  addBar: { paddingHorizontal: 16, paddingVertical: 4, borderTopWidth: 1, alignItems: 'center' },
   add: { fontFamily: font.semibold, fontSize: 15 },
   sheet: { maxHeight: '88%', borderTopStartRadius: 20, borderTopEndRadius: 20 },
   content: { paddingHorizontal: 18, paddingTop: 14, gap: 12 },

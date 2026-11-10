@@ -22,7 +22,7 @@ const shiftMonth = (iso: string, n: number) => {
 };
 
 /** Timetable slots beyond the weeks the app has already filled in, so the month shows them too. */
-function projected(recurring: Recurring[], date: string, existing: Set<string>): Task[] {
+export function projected(recurring: Recurring[], date: string, existing: Set<string>): Task[] {
   return recurring
     .filter((r) => !r.endedAt && r.startDate <= date && r.weekdays.includes(weekday(date)) && !existing.has(`${r.id}|${date}`))
     .map((r) => ({

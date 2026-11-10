@@ -6,6 +6,7 @@ import { openRepo } from './data/repo';
 import type { Repo } from './data/repoTypes';
 import { addDays, toIso } from './domain/dates';
 import * as L from './domain/logic';
+import { endLabel } from './domain/order';
 import type { AppData, Change, Checklist, Points, Recurring, Task, TaskEvent } from './domain/types';
 import { fmtDay, t as tr } from './i18n';
 import { syncReminders } from './notifications';
@@ -205,7 +206,9 @@ export function saveForm(id: string | null, form: TaskForm) {
     return;
   }
   if (form.repeat) {
-    commit(L.createRecurring(S.data, { title: input.title, groupId: input.groupId, points: input.points, time: input.time, reminderMin: input.reminderMin, weekdays: form.weekdays }, S.today, now));
+    // An "until" picked on the form becomes the weekly item's end time, so the timetable shows its real length.
+    const endTime = input.time && input.durationMin ? endLabel({ time: input.time, durationMin: input.durationMin } as Task) : null;
+    commit(L.createRecurring(S.data, { title: input.title, groupId: input.groupId, points: input.points, time: input.time, reminderMin: input.reminderMin, weekdays: form.weekdays, endTime }, S.today, now));
     return;
   }
   commit(L.createTask(S.data, input, now));
