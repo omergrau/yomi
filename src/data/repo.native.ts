@@ -76,7 +76,7 @@ const putEvent = (db: SQLiteDatabase, e: TaskEvent) =>
   db.runSync('INSERT OR REPLACE INTO events (id,task_id,type,from_date,to_date,at) VALUES (?,?,?,?,?,?)', [e.id, e.taskId, e.type, e.fromDate, e.toDate, e.at]);
 const putMeta = (db: SQLiteDatabase, m: Partial<AppData['meta']>) => {
   Object.entries(m).forEach(([k, v]) =>
-    db.runSync('INSERT OR REPLACE INTO meta (key,value) VALUES (?,?)', [k, Array.isArray(v) ? JSON.stringify(v) : v ?? null]),
+    db.runSync('INSERT OR REPLACE INTO meta (key,value) VALUES (?,?)', [k, Array.isArray(v) ? JSON.stringify(v) : typeof v === 'boolean' ? (v ? '1' : '0') : v ?? null]),
   );
 };
 
@@ -121,6 +121,7 @@ export function openRepo(): Repo {
           lastDay: meta.lastDay ?? null,
           theme: (meta.theme as AppData['meta']['theme']) ?? 'system',
           hiddenCalendars: meta.hiddenCalendars ? JSON.parse(meta.hiddenCalendars) : [],
+          calendarSync: meta.calendarSync !== '0',
         },
       };
     },

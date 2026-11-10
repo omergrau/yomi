@@ -11,6 +11,8 @@ import { endLabel } from './domain/order';
 import type { Alarm, AppData, Change, Checklist, Note, Points, Recurring, Task, TaskEvent } from './domain/types';
 import { fmtDay, t as tr } from './i18n';
 import { syncReminders } from './notifications';
+import { askCalendar, calendarAccess, removeAppCalendar, syncAppCalendar } from './calendar';
+import { calendarSpecs } from './domain/calsync';
 
 export type SheetState = { id: string | null; groupId?: string | null; date?: string | null };
 export type Toast = { key: number; message: string; undo?: () => void };
@@ -53,6 +55,43 @@ export function showToast(message: string, undo?: () => void) {
 }
 export const hideToast = () => set({ toast: null });
 
+// The "עוזר אישי" calendar follows the tasks a moment after they change. One sync runs at a time.
+let calendarTimer: ReturnType<typeof setTimeout> | null = null;
+let calendarBusy = false;
+let calendarAgain = false;
+function queueCalendar() {
+  if (Platform.OS === 'web' || !S.data.meta.calendarSync) return;
+  if (calendarTimer) clearTimeout(calendarTimer);
+  calendarTimer = setTimeout(runCalendar, 1500);
+}
+async function runCalendar() {
+  if (calendarBusy) {
+    calendarAgain = true;
+    return;
+  }
+  calendarBusy = true;
+  try {
+    if (S.data.meta.calendarSync) await syncAppCalendar(calendarSpecs(S.data, S.today), Date.now());
+  } catch {
+    // The calendar is a mirror; a failed round is retried on the next change or return to the app.
+  } finally {
+    calendarBusy = false;
+    if (calendarAgain) {
+      calendarAgain = false;
+      queueCalendar();
+    }
+  }
+}
+
+/** Turning the sync on asks for the calendar and fills it; turning it off removes the app's calendar. */
+export async function setCalendarSync(on: boolean) {
+  if (on && (await calendarAccess()) !== 'granted' && !(await askCalendar())) return false;
+  commit({ meta: { calendarSync: on } });
+  if (on) queueCalendar();
+  else await removeAppCalendar().catch(() => {});
+  return true;
+}
+
 let reminderTimer: ReturnType<typeof setTimeout> | null = null;
 function queueReminders() {
   if (reminderTimer) clearTimeout(reminderTimer);
@@ -66,6 +105,7 @@ function commit(change: Change) {
   repo.apply(change);
   set({ data: L.applyChange(S.data, change) });
   queueReminders();
+  if (change.tasks?.length || change.recurring?.length) queueCalendar();
   if (change.alarms?.length || change.removeAlarms?.length) followAlarms(before);
 }
 
@@ -176,10 +216,18 @@ export function initStore() {
   S = { ...S, data, ready: true };
   ensureDay();
   queueReminders();
+  // With the sync on, the first start asks once for the calendar; after that it only follows the tasks.
+  if (Platform.OS !== 'web' && data.meta.calendarSync) {
+    calendarAccess()
+      .then((a) => (a === 'undetermined' ? askCalendar() : a === 'granted'))
+      .then((ok) => ok && queueCalendar())
+      .catch(() => {});
+  }
   AppState.addEventListener('change', (s) => {
     if (s === 'active') {
       ensureDay();
       syncAlarms(true);
+      queueCalendar();
     }
   });
   setInterval(ensureDay, 60000);

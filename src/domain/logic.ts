@@ -511,10 +511,10 @@ export function readBackup(raw: string): { data: AppData; events: TaskEvent[] } 
       alarms: Array.isArray(b.data.alarms) ? b.data.alarms.map((a) => ({ ...a, setAt: null })) : [],
       // Backups made before the assistant's memory existed have no notes.
       notes: Array.isArray(b.data.notes) ? b.data.notes.filter((n) => typeof n?.id === 'string' && typeof n?.text === 'string') : [],
-      meta: { lastDay: b.data.meta?.lastDay ?? null, theme: b.data.meta?.theme ?? 'system', hiddenCalendars: Array.isArray(b.data.meta?.hiddenCalendars) ? b.data.meta.hiddenCalendars : [] },
+      meta: { lastDay: b.data.meta?.lastDay ?? null, theme: b.data.meta?.theme ?? 'system', hiddenCalendars: Array.isArray(b.data.meta?.hiddenCalendars) ? b.data.meta.hiddenCalendars : [], calendarSync: b.data.meta?.calendarSync !== false },
     },
     events: b.events,
   };
 }
 
-export const emptyData = (): AppData => ({ tasks: {}, groups: [], recurring: [], dayLogs: {}, lists: [], alarms: [], notes: [], meta: { lastDay: null, theme: 'system', hiddenCalendars: [] } });
+export const emptyData = (): AppData => ({ tasks: {}, groups: [], recurring: [], dayLogs: {}, lists: [], alarms: [], notes: [], meta: { lastDay: null, theme: 'system', hiddenCalendars: [], calendarSync: true } });

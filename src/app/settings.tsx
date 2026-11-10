@@ -9,7 +9,7 @@ import { askCalendar, calendarAccess, listCalendars, type CalendarAccess, type P
 import { Btn, Chip, TextLink } from '../components/ui';
 import { t as tr } from '../i18n';
 import { askExact, askNotifications, reminderAccess, scheduleTest, type ReminderAccess } from '../notifications';
-import { exportPayload, importPayload, setHiddenCalendars, setTheme, showToast, useApp } from '../store';
+import { exportPayload, importPayload, setCalendarSync, setHiddenCalendars, setTheme, showToast, useApp } from '../store';
 import { font, useTheme } from '../theme';
 
 export default function SettingsScreen() {
@@ -179,6 +179,25 @@ export default function SettingsScreen() {
 
       <Text style={[s.h2, { color: t.ink, borderTopColor: t.line }]}>{tr.calendarTitle}</Text>
       {cal === 'unavailable' ? <Text style={[s.note, { color: t.mute }]}>{tr.calendarPhoneOnly}</Text> : null}
+      {cal !== 'unavailable' ? (
+        <Pressable
+          onPress={() => setCalendarSync(!(data.meta.calendarSync && cal === 'granted')).then((ok) => (ok ? refresh() : showToast(tr.calendarSyncDenied)))}
+          style={s.calRow}
+          accessibilityRole="switch"
+          accessibilityState={{ checked: data.meta.calendarSync && cal === 'granted' }}
+          aria-checked={data.meta.calendarSync && cal === 'granted'}
+          accessibilityLabel={tr.calendarSync}
+          accessibilityHint={tr.calendarSyncWhy}
+        >
+          <View style={[s.box, { borderColor: data.meta.calendarSync && cal === 'granted' ? t.accent : t.soft, backgroundColor: data.meta.calendarSync && cal === 'granted' ? t.accent : 'transparent' }]}>
+            {data.meta.calendarSync && cal === 'granted' ? <Text style={[s.boxT, { color: t.onAccent }]}>✓</Text> : null}
+          </View>
+          <View style={s.flex}>
+            <Text style={[s.line, { color: t.ink }]}>{tr.calendarSync}</Text>
+            <Text style={[s.note, { color: t.mute }]}>{tr.calendarSyncWhy}</Text>
+          </View>
+        </Pressable>
+      ) : null}
       {cal === 'undetermined' ? (
         <View style={s.col}>
           <Text style={[s.note, { color: t.mute }]}>{tr.calendarConnectWhy}</Text>

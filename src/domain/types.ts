@@ -64,7 +64,7 @@ export type Alarm = { id: string; date: string; time: string; label: string | nu
 /** Something the assistant should know about the person, kept across conversations and updates. */
 export type Note = { id: string; text: string; createdAt: number };
 
-export type Meta = { lastDay: string | null; theme: 'system' | 'light' | 'dark'; hiddenCalendars: string[] };
+export type Meta = { lastDay: string | null; theme: 'system' | 'light' | 'dark'; hiddenCalendars: string[]; calendarSync: boolean };
 
 export type AppData = {
   tasks: Record<string, Task>;

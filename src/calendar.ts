@@ -1,6 +1,8 @@
-// Reads the phone's calendar so the day can show what is already booked. Nothing is written to the calendar.
+// The phone's calendar. Its events are read so the day shows what is already booked, and the app's own tasks are
+// written to a calendar of its own, "עוזר אישי". That calendar is left out of reading, so nothing shows twice.
 import { Platform } from 'react-native';
 import { addDays, parseIso } from './domain/dates';
+import { SYNC_AHEAD, SYNC_BACK, planSync, type CalSpec } from './domain/calsync';
 
 export type PhoneCalendar = { id: string; title: string; color: string; account: string };
 export type PhoneEvent = { id: string; title: string; start: number; end: number; allDay: boolean; location: string | null; calendarId: string; color: string };
@@ -22,12 +24,18 @@ export async function askCalendar(): Promise<boolean> {
   return (await c.requestCalendarPermissionsAsync()).granted;
 }
 
+/** The app's own calendar is marked by its owner account. */
+export const APP_CALENDAR = 'עוזר אישי';
+const OWNER = 'app.yomi';
+type Cal = { ownerAccount?: string; source?: { name?: string } };
+const isApp = (x: Cal) => x.ownerAccount === OWNER || x.source?.name === OWNER;
+
 export async function listCalendars(): Promise<PhoneCalendar[]> {
   const c = api();
   if (!c) return [];
   const cals = await c.getCalendarsAsync(c.EntityTypes.EVENT);
   return cals
-    .filter((x) => x.isVisible !== false)
+    .filter((x) => x.isVisible !== false && !isApp(x))
     .map((x) => ({ id: x.id, title: x.title, color: x.color, account: x.source?.name ?? '' }));
 }
 
@@ -71,4 +79,55 @@ export async function eventsFor(date: string, hidden: string[]): Promise<PhoneEv
     calendarId: e.calendarId,
     color: colors.get(e.calendarId) ?? '',
   }));
+}
+
+async function appCalendarId(make: boolean): Promise<string | null> {
+  const c = api();
+  if (!c) return null;
+  const found = (await c.getCalendarsAsync(c.EntityTypes.EVENT)).find(isApp);
+  if (found || !make) return found?.id ?? null;
+  return c.createCalendarAsync({
+    title: APP_CALENDAR,
+    name: OWNER,
+    color: '#2E7D5B',
+    entityType: c.EntityTypes.EVENT,
+    source: { isLocalAccount: true, name: OWNER, type: c.SourceType.LOCAL },
+    ownerAccount: OWNER,
+    accessLevel: c.CalendarAccessLevel.OWNER,
+    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+  });
+}
+
+const DAY = 86400000;
+
+/** Brings the "עוזר אישי" calendar in line with the app's tasks. Returns how many events were written or removed. */
+export async function syncAppCalendar(wanted: CalSpec[], now: number): Promise<number> {
+  const c = api();
+  if (!c || (await calendarAccess()) !== 'granted') return 0;
+  const id = await appCalendarId(true);
+  if (!id) return 0;
+  const from = new Date(now - (SYNC_BACK + 1) * DAY);
+  const to = new Date(now + (SYNC_AHEAD + 2) * DAY);
+  const existing = (await c.getEventsAsync([id], from, to)).map((e) => ({
+    id: e.id, notes: e.notes ?? null, title: e.title || '', start: new Date(e.startDate).getTime(), end: new Date(e.endDate).getTime(),
+    allDay: !!e.allDay, location: e.location || null,
+  }));
+  const plan = planSync(existing, wanted);
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const details = (w: CalSpec) => ({
+    title: w.title, startDate: new Date(w.start), endDate: new Date(w.end), allDay: w.allDay, location: w.location ?? '', notes: w.notes,
+    timeZone: w.allDay ? 'UTC' : tz, endTimeZone: w.allDay ? 'UTC' : tz, alarms: [],
+  });
+  for (const e of plan.remove) await c.deleteEventAsync(e).catch(() => {});
+  for (const u of plan.update) await c.updateEventAsync(u.id, details(u.spec)).catch(() => {});
+  for (const w of plan.create) await c.createEventAsync(id, details(w)).catch(() => {});
+  return plan.remove.length + plan.update.length + plan.create.length;
+}
+
+/** Turning the sync off removes the app's calendar and every event in it. */
+export async function removeAppCalendar() {
+  const c = api();
+  if (!c || (await calendarAccess()) !== 'granted') return;
+  const id = await appCalendarId(false);
+  if (id) await c.deleteCalendarAsync(id);
 }
