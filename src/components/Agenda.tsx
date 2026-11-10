@@ -1,14 +1,15 @@
-// One quiet line for the phone calendar: what is on now or next. Tapping it opens the whole day's schedule.
+// The day's schedule: every task with a time and every phone calendar event, in clock order. A task with a time
+// lives only here, not in the day's list, and is checked off from its row.
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { AppState, Pressable, StyleSheet, Text, View } from 'react-native';
 import { calendarAccess, eventsFor, type CalendarAccess, type PhoneEvent } from '../calendar';
 import { buildAgenda, nextUp, type AgendaItem } from '../domain/agenda';
-import { dayTasks } from '../domain/logic';
+import { dayTasks, isLateUrgent } from '../domain/logic';
+import type { Task } from '../domain/types';
 import { t as tr } from '../i18n';
 import { openSheet, useApp } from '../store';
 import { font, groupColor, useTheme, type Theme } from '../theme';
-
-let openByDefault = false;
+import { Pips } from './ui';
 
 export const hm = (ms: number) => {
   const d = new Date(ms);
@@ -39,103 +40,106 @@ export function useDayEvents(date: string, hidden: string[]) {
 
 const barColor = (i: AgendaItem, t: Theme) => i.color ?? (i.groupColor !== null ? groupColor(t, i.groupColor) : i.source === 'calendar' ? t.soft : t.accent);
 
-function Row({ item, now, isToday, t }: { item: AgendaItem; now: number; isToday: boolean; t: Theme }) {
+type Toggle = (x: Task, px: number, py: number) => void;
+
+function Row({ item, task, now, isToday, next, onToggle, t }: { item: AgendaItem; task?: Task; now: number; isToday: boolean; next: boolean; onToggle: Toggle; t: Theme }) {
   const end = item.end ?? (item.start !== null ? item.start + 30 * 60000 : null);
   const past = isToday && end !== null && end <= now;
+  const done = item.done;
+  const late = task ? isLateUrgent(task, now) : false;
+  const when = item.allDay ? tr.allDay : item.start !== null ? hm(item.start) : '';
   return (
-    <Pressable
-      disabled={!item.taskId}
-      onPress={() => item.taskId && openSheet({ id: item.taskId })}
-      style={[s.row, { opacity: past || item.done ? 0.5 : 1 }]}
-      accessibilityRole={item.taskId ? 'button' : 'text'}
-      accessibilityLabel={`${item.allDay ? tr.allDay : item.start !== null ? hm(item.start) : ''} ${item.title}`}
-    >
-      <View style={s.when}>
-        <Text style={[s.start, { color: t.ink }]}>{item.allDay ? tr.allDay : item.start !== null ? hm(item.start) : ''}</Text>
-        {item.end !== null && !item.allDay ? <Text style={[s.end, { color: t.mute }]}>{hm(item.end)}</Text> : null}
-      </View>
-      <View style={[s.bar, { backgroundColor: barColor(item, t) }]} />
-      <View style={s.info}>
-        <Text style={[s.title, { color: t.ink, textDecorationLine: item.done ? 'line-through' : 'none' }]} numberOfLines={1}>{item.title || tr.agendaUntitled}</Text>
-        {item.place ? <Text style={[s.sub, { color: t.mute }]} numberOfLines={1}>{item.place}</Text> : null}
-      </View>
-    </Pressable>
+    <View style={[s.row, { opacity: done ? 0.5 : past ? 0.6 : 1 }]}>
+      {task ? (
+        <Pressable
+          onPress={(e) => onToggle(task, e.nativeEvent.pageX, e.nativeEvent.pageY)}
+          hitSlop={10}
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked: done }}
+          accessibilityLabel={tr.markDone(task.title)}
+          style={[s.check, { borderColor: done ? t.accent : late ? t.alert : t.soft, backgroundColor: done ? t.accent : 'transparent' }]}
+        >
+          {done ? <Text style={[s.tick, { color: t.onAccent }]}>✓</Text> : null}
+        </Pressable>
+      ) : (
+        <View style={s.check} />
+      )}
+      <Pressable
+        disabled={!task}
+        onPress={() => task && openSheet({ id: task.id })}
+        style={s.main}
+        accessibilityRole={task ? 'button' : 'text'}
+        accessibilityLabel={`${when} ${item.end !== null && !item.allDay ? tr.until(hm(item.end)) : ''} ${item.title}${item.place ? `, ${item.place}` : ''}`}
+      >
+        <View style={s.when}>
+          <Text style={[s.start, { color: next ? t.accent : t.ink, fontFamily: next ? font.bold : font.semibold }]}>{when}</Text>
+          {item.end !== null && !item.allDay ? <Text style={[s.end, { color: t.mute }]}>{hm(item.end)}</Text> : null}
+        </View>
+        <View style={[s.bar, { backgroundColor: barColor(item, t) }]} />
+        <View style={s.info}>
+          <Text
+            style={[s.title, { color: late ? t.alert : t.ink, fontFamily: late ? font.bold : font.medium, textDecorationLine: done ? 'line-through' : 'none' }]}
+            numberOfLines={2}
+          >
+            {item.title || tr.agendaUntitled}
+            {task?.recurringId ? <Text style={{ color: t.soft }}>{'  ↻'}</Text> : null}
+          </Text>
+          {item.place ? <Text style={[s.sub, { color: t.mute }]} numberOfLines={1}>{item.place}</Text> : null}
+        </View>
+        {task ? <Pips points={task.points} muted={done} hot={late || task.points === 5} /> : null}
+      </Pressable>
+    </View>
   );
 }
 
-export function Agenda({ date }: { date: string }) {
+export function Agenda({ date, onToggle }: { date: string; onToggle: Toggle }) {
   const t = useTheme();
   const { data, today } = useApp();
   const { events, access } = useDayEvents(date, data.meta.hiddenCalendars);
-  const [open, setOpen] = useState(openByDefault);
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 30000);
     return () => clearInterval(id);
   }, []);
 
+  const tasks = useMemo(() => dayTasks(data, date), [data, date]);
   const items = useMemo(() => {
     const series = new Map(data.recurring.map((r) => [r.id, r]));
     const colors = new Map(data.groups.map((g) => [g.id, g.color]));
-    return buildAgenda(date, dayTasks(data, date), series, events, colors);
-  }, [data, date, events]);
+    return buildAgenda(date, tasks, series, events, colors);
+  }, [data, date, tasks, events]);
+  const byId = useMemo(() => new Map(tasks.map((x) => [x.id, x])), [tasks]);
 
   const isToday = date === today;
-  // Tasks already sit in the day's list, so this line speaks only for the phone calendar.
-  const outside = items.filter((i) => !i.taskId);
-  const timed = outside.filter((i) => !i.allDay && i.start !== null);
-  const lead = isToday ? nextUp(timed, now) : timed[0] ? { item: timed[0], current: false } : null;
-  const allDay = outside.filter((i) => i.allDay);
+  // The item on now or next gets its time in green.
+  const lead = isToday ? nextUp(items.filter((i) => !i.done), now) : null;
 
-  const toggle = () => {
-    openByDefault = !open;
-    setOpen(!open);
-  };
-
-  if (!outside.length) return null;
-
-  const end = lead?.current && lead.item.start !== null ? lead.item.end ?? lead.item.start + 30 * 60000 : null;
-  const label = lead
-    ? `${lead.current && end ? `${tr.agendaNow} · ${tr.until(hm(end))}` : hm(lead.item.start as number)}  ${lead.item.title || tr.agendaUntitled}`
-    : allDay.length
-      ? `${tr.allDay}  ${allDay.map((i) => i.title).join(', ')}`
-      : isToday
-        ? tr.agendaDone
-        : tr.agendaCount(outside.length);
+  if (!items.length) return null;
 
   return (
     <View style={s.wrap}>
-      <Pressable onPress={toggle} style={s.line} accessibilityRole="button" accessibilityState={{ expanded: open }} accessibilityHint={open ? tr.agendaLess : tr.agendaAll}>
-        <View style={[s.dot, { backgroundColor: lead ? barColor(lead.item, t) : t.soft }]} />
-        <Text style={[s.lineT, { color: lead ? t.ink : t.mute }]} numberOfLines={1}>{label}</Text>
-        <Text style={[s.more, { color: t.soft }]}>{open ? '⌃' : '⌄'}</Text>
-      </Pressable>
-      {open ? (
-        <View style={s.list}>
-          {items.map((i) => (
-            <Row key={i.key} item={i} now={now} isToday={isToday} t={t} />
-          ))}
-          {access === 'denied' ? <Text style={[s.note, { color: t.mute }]}>{tr.calendarDenied}</Text> : null}
-        </View>
-      ) : null}
+      {items.map((i) => (
+        <Row key={i.key} item={i} task={i.taskId ? byId.get(i.taskId) : undefined} now={now} isToday={isToday} next={lead?.item.key === i.key} onToggle={onToggle} t={t} />
+      ))}
+      {access === 'denied' ? <Text style={[s.note, { color: t.mute }]}>{tr.calendarDenied}</Text> : null}
+      <View style={[s.rule, { backgroundColor: t.line }]} />
     </View>
   );
 }
 
 const s = StyleSheet.create({
-  wrap: { paddingHorizontal: 20, paddingTop: 2, paddingBottom: 4 },
-  line: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 36 },
-  dot: { width: 6, height: 6, borderRadius: 3 },
-  lineT: { flex: 1, fontFamily: font.medium, fontSize: 14, fontVariant: ['tabular-nums', 'lining-nums'] },
-  more: { fontFamily: font.regular, fontSize: 14 },
-  sub: { fontFamily: font.regular, fontSize: 12.5 },
-  list: { paddingBottom: 6 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 9, paddingVertical: 5 },
-  when: { width: 44, alignItems: 'flex-start' },
-  start: { fontFamily: font.semibold, fontSize: 13.5, fontVariant: ['tabular-nums', 'lining-nums'] },
+  wrap: { paddingTop: 2, paddingBottom: 2 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20, minHeight: 52 },
+  check: { width: 22, height: 22, borderRadius: 11, borderWidth: 1.5, borderColor: 'transparent', alignItems: 'center', justifyContent: 'center' },
+  tick: { fontFamily: font.bold, fontSize: 13, lineHeight: 17 },
+  main: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, minHeight: 52 },
+  when: { width: 42, alignItems: 'flex-start' },
+  start: { fontSize: 14, fontVariant: ['tabular-nums', 'lining-nums'] },
   end: { fontFamily: font.regular, fontSize: 11.5, fontVariant: ['tabular-nums', 'lining-nums'] },
   bar: { width: 3, alignSelf: 'stretch', borderRadius: 2 },
   info: { flex: 1 },
-  title: { fontFamily: font.medium, fontSize: 14.5 },
-  note: { fontFamily: font.regular, fontSize: 12.5, paddingTop: 4 },
+  title: { fontSize: 16.5 },
+  sub: { fontFamily: font.regular, fontSize: 12.5 },
+  note: { fontFamily: font.regular, fontSize: 12.5, paddingHorizontal: 20, paddingTop: 4 },
+  rule: { height: StyleSheet.hairlineWidth, marginHorizontal: 20, marginTop: 6, marginBottom: 4 },
 });

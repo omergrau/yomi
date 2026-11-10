@@ -146,7 +146,7 @@ function useLiftGesture(task: Task, zone: Source, index: number, d: Drag, ref: A
 const DayRow = React.memo(function DayRow({
   task, group, series, index, d, width, onLift, onDrop, onToggle, late, next,
 }: {
-  task: Task; group?: Group; series?: Recurring; index: number; d: Drag; width: number; late: boolean; next: boolean;
+  task: Task; group?: Group; series?: Recurring; index: number; d: Drag; width: number; late: boolean; next?: boolean;
   onLift: (x: Task, w: number, h: number, from: Source) => void; onDrop: () => void; onToggle: (x: Task, px: number, py: number) => void;
 }) {
   const t = useTheme();
@@ -475,17 +475,11 @@ export default function TodayScreen() {
     const id = setInterval(() => setClock(Date.now()), 30000);
     return () => clearInterval(id);
   }, []);
-  const openRows = useMemo(() => orderOpen(rows.filter((x) => !x.doneAt), view, today, clock, series).ordered, [rows, view, today, clock, series]);
-  const doneRows = useMemo(() => rows.filter((x) => x.doneAt), [rows]);
+  // A task with a time sits in the schedule above, so the list holds only the rest.
+  const listed = useMemo(() => rows.filter((x) => !x.time), [rows]);
+  const openRows = useMemo(() => orderOpen(listed.filter((x) => !x.doneAt), view, today, clock, series).ordered, [listed, view, today, clock, series]);
+  const doneRows = useMemo(() => listed.filter((x) => x.doneAt), [listed]);
   const [showDone, setShowDone] = useState(doneShown);
-  const nextId = useMemo(() => {
-    if (view !== today) return null;
-    const d = new Date(clock);
-    const nowMin = d.getHours() * 60 + d.getMinutes();
-    const mins = (x: Task) => Number(x.time!.slice(0, 2)) * 60 + Number(x.time!.slice(3, 5));
-    const timed = openRows.filter((x) => x.time && mins(x) + 30 > nowMin).sort((a, b) => mins(a) - mins(b));
-    return timed[0]?.id ?? null;
-  }, [openRows, view, today, clock]);
   const turnWeek = useCallback((n: number) => setView(addDays(view, n)), [view]);
   // Sideways on the week strip turns the week.
   const weekPan = usePanGesture({
@@ -719,7 +713,7 @@ export default function TodayScreen() {
       </GestureDetector>
 
       <AnimatedScroll ref={scrollRef} onScroll={onScroll} scrollEventThrottle={16} style={s.flex} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: PEEK + 28 + (drawerOpen ? HALF : 0) }}>
-        <Agenda date={view} />
+        <Agenda date={view} onToggle={onToggle} />
         <View ref={listRef} collapsable={false} style={{ minHeight: 64 }}>
           {openRows.length ? (
             openRows.map((task, index) => (
@@ -742,11 +736,10 @@ export default function TodayScreen() {
                   onDrop={onDrop}
                   onToggle={onToggle}
                   late={isLateUrgent(task, clock)}
-                  next={task.id === nextId}
                 />
               </Animated.View>
             ))
-          ) : !doneRows.length ? (
+          ) : !rows.length ? (
             <Text style={[s.empty, { color: t.mute }]}>{tr.emptyDay}</Text>
           ) : null}
         </View>
