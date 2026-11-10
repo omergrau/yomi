@@ -252,10 +252,25 @@ export const ACTIONS = {
 
 export type ActionName = keyof typeof ACTIONS;
 
+// Optional fields the model may leave out. A missing field means "not given", the same as null.
+const OPTIONAL: Partial<Record<ActionName, Record<string, unknown>>> = {
+  add_task: { date: null, start: null, duration_min: null, urgency: null, topic: null, reminder_min: null },
+  update_task: { title: null, date: null, remove_from_day: false, start: null, clear_time: false, duration_min: null, urgency: null, topic: null, reminder_min: null },
+  add_weekly: { end: null, place: null, urgency: null, topic: null, reminder_min: null },
+  find_free_time: { earliest: null, latest: null },
+  create_list: { items: [] },
+  update_list: { title: null, add: [], check: [], uncheck: [], remove: [], clear_checked: false },
+};
+
 export function runAction(name: string, ctx: Ctx, input: unknown): ActionResult {
   const fn = ACTIONS[name as ActionName] as ((c: Ctx, i: never) => ActionResult) | undefined;
   if (!fn) throw new ActionError(`unknown action ${name}`);
-  return fn(ctx, input as never);
+  const given = (input && typeof input === 'object' ? input : {}) as Record<string, unknown>;
+  const filled: Record<string, unknown> = { ...given };
+  for (const [key, fallback] of Object.entries(OPTIONAL[name as ActionName] ?? {})) {
+    if (filled[key] === undefined || filled[key] === null) filled[key] = fallback;
+  }
+  return fn(ctx, filled as never);
 }
 
 export const isActionError = (e: unknown): e is Error => e instanceof ActionError;

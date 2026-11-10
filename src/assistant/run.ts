@@ -10,12 +10,12 @@ import { getApiKey } from './key';
 const MODEL = 'claude-opus-5-5';
 const MAX_STEPS = 8;
 
-const nullable = (type: string, description: string) => ({ anyOf: [{ type }, { type: 'null' }], description });
+// Optional fields are simply left out of `required`; runAction fills in what is missing.
+const optional = (type: string, description: string) => ({ type, description });
 const TOOLS: Anthropic.Beta.BetaTool[] = [
   {
     name: 'get_schedule',
     description: 'Read the days in a date range: tasks with time, length, urgency and topic, weekly timetable items, phone calendar events, plus tasks that have no day yet. Call this before planning or when unsure what exists.',
-    strict: true,
     input_schema: {
       type: 'object', additionalProperties: false, required: ['from_date', 'to_date'],
       properties: { from_date: { type: 'string', description: 'YYYY-MM-DD' }, to_date: { type: 'string', description: 'YYYY-MM-DD, at most 62 days after from_date' } },
@@ -23,96 +23,88 @@ const TOOLS: Anthropic.Beta.BetaTool[] = [
   },
   {
     name: 'add_task',
-    description: 'Add a one-off task or meeting. Leave date null to keep it in "my tasks" without a day. A start time needs a date.',
-    strict: true,
+    description: 'Add a one-off task or meeting. Leave date out to keep it in "my tasks" without a day. A start time needs a date.',
     input_schema: {
       type: 'object', additionalProperties: false,
-      required: ['title', 'date', 'start', 'duration_min', 'urgency', 'topic', 'reminder_min'],
+      required: ['title'],
       properties: {
         title: { type: 'string', description: 'Short Hebrew title' },
-        date: nullable('string', 'YYYY-MM-DD, or null for no day'),
-        start: nullable('string', 'HH:MM 24h, or null for no time'),
-        duration_min: nullable('integer', 'Length in minutes for meetings and activities, or null'),
-        urgency: nullable('integer', '1 (low) to 5 (urgent). Default 3'),
-        topic: nullable('string', 'Topic name; an existing one if it fits, else a new one, or null'),
-        reminder_min: nullable('integer', 'Minutes before the start to remind: 0, 10, 30 or 60; null for no reminder'),
+        date: optional('string', 'YYYY-MM-DD; leave out for no day'),
+        start: optional('string', 'HH:MM 24h; leave out for no time'),
+        duration_min: optional('integer', 'Length in minutes for meetings and activities, or null'),
+        urgency: optional('integer', '1 (low) to 5 (urgent). Default 3'),
+        topic: optional('string', 'Topic name; an existing one if it fits, else a new one, or null'),
+        reminder_min: optional('integer', 'Minutes before the start to remind: 0, 10, 30 or 60; null for no reminder'),
       },
     },
   },
   {
     name: 'update_task',
-    description: 'Change an existing task. Null fields stay as they are. remove_from_day moves it back to "my tasks"; clear_time keeps the day but drops the time.',
-    strict: true,
+    description: 'Change an existing task. Fields left out stay as they are. remove_from_day moves it back to "my tasks"; clear_time keeps the day but drops the time.',
     input_schema: {
       type: 'object', additionalProperties: false,
-      required: ['task_id', 'title', 'date', 'remove_from_day', 'start', 'clear_time', 'duration_min', 'urgency', 'topic', 'reminder_min'],
+      required: ['task_id'],
       properties: {
         task_id: { type: 'string' },
-        title: nullable('string', 'New title or null'),
-        date: nullable('string', 'New YYYY-MM-DD or null'),
+        title: optional('string', 'New title or null'),
+        date: optional('string', 'New YYYY-MM-DD or null'),
         remove_from_day: { type: 'boolean' },
-        start: nullable('string', 'New HH:MM or null'),
+        start: optional('string', 'New HH:MM or null'),
         clear_time: { type: 'boolean' },
-        duration_min: nullable('integer', 'New length in minutes or null'),
-        urgency: nullable('integer', '1 to 5 or null'),
-        topic: nullable('string', 'Topic name or null'),
-        reminder_min: nullable('integer', 'Minutes before or null'),
+        duration_min: optional('integer', 'New length in minutes or null'),
+        urgency: optional('integer', '1 to 5 or null'),
+        topic: optional('string', 'Topic name or null'),
+        reminder_min: optional('integer', 'Minutes before or null'),
       },
     },
   },
   {
     name: 'complete_task',
     description: 'Mark a task done (earns its urgency as points) or reopen it.',
-    strict: true,
     input_schema: { type: 'object', additionalProperties: false, required: ['task_id', 'done'], properties: { task_id: { type: 'string' }, done: { type: 'boolean' } } },
   },
   {
     name: 'delete_task',
     description: 'Delete one task. Ask the person first unless they clearly asked for this exact deletion.',
-    strict: true,
     input_schema: { type: 'object', additionalProperties: false, required: ['task_id'], properties: { task_id: { type: 'string' } } },
   },
   {
     name: 'add_weekly',
     description: 'Add a fixed weekly item to the timetable, such as a lecture or training. It appears on its weekdays every week and reminds.',
-    strict: true,
     input_schema: {
       type: 'object', additionalProperties: false,
-      required: ['title', 'weekdays', 'start', 'end', 'place', 'urgency', 'topic', 'reminder_min'],
+      required: ['title', 'weekdays', 'start'],
       properties: {
         title: { type: 'string' },
         weekdays: { type: 'array', items: { type: 'integer' }, description: '0 Sunday ... 6 Saturday' },
         start: { type: 'string', description: 'HH:MM' },
-        end: nullable('string', 'HH:MM after start, or null'),
-        place: nullable('string', 'Place or null'),
-        urgency: nullable('integer', '1 to 5'),
-        topic: nullable('string', 'Topic name or null'),
-        reminder_min: nullable('integer', 'Minutes before; default 10'),
+        end: optional('string', 'HH:MM after start, or null'),
+        place: optional('string', 'Place or null'),
+        urgency: optional('integer', '1 to 5'),
+        topic: optional('string', 'Topic name or null'),
+        reminder_min: optional('integer', 'Minutes before; default 10'),
       },
     },
   },
   {
     name: 'find_free_time',
     description: 'Find free windows of at least duration_min minutes between tasks, timetable items and calendar events. Use it before suggesting a time.',
-    strict: true,
     input_schema: {
-      type: 'object', additionalProperties: false, required: ['from_date', 'to_date', 'duration_min', 'earliest', 'latest'],
+      type: 'object', additionalProperties: false, required: ['from_date', 'to_date', 'duration_min'],
       properties: {
         from_date: { type: 'string' }, to_date: { type: 'string' }, duration_min: { type: 'integer' },
-        earliest: nullable('string', 'HH:MM, default 08:00'), latest: nullable('string', 'HH:MM, default 22:00'),
+        earliest: optional('string', 'HH:MM, default 08:00'), latest: optional('string', 'HH:MM, default 22:00'),
       },
     },
   },
   {
     name: 'get_lists',
     description: 'Read every checklist (such as shopping lists) with its items, their ids and whether they are ticked.',
-    strict: true,
     input_schema: { type: 'object', additionalProperties: false, required: [], properties: {} },
   },
   {
     name: 'create_list',
     description: 'Create a new checklist with a title and its items.',
-    strict: true,
     input_schema: {
       type: 'object', additionalProperties: false, required: ['title', 'items'],
       properties: { title: { type: 'string' }, items: { type: 'array', items: { type: 'string' }, description: 'One short Hebrew item each' } },
@@ -121,12 +113,11 @@ const TOOLS: Anthropic.Beta.BetaTool[] = [
   {
     name: 'update_list',
     description: 'Change one checklist: rename it, add items, tick or untick items, remove items, or clear every ticked item. Use item ids from get_lists.',
-    strict: true,
     input_schema: {
-      type: 'object', additionalProperties: false, required: ['list_id', 'title', 'add', 'check', 'uncheck', 'remove', 'clear_checked'],
+      type: 'object', additionalProperties: false, required: ['list_id'],
       properties: {
         list_id: { type: 'string' },
-        title: nullable('string', 'New title or null'),
+        title: optional('string', 'New title or null'),
         add: { type: 'array', items: { type: 'string' } },
         check: { type: 'array', items: { type: 'string' }, description: 'Item ids to tick' },
         uncheck: { type: 'array', items: { type: 'string' }, description: 'Item ids to untick' },
@@ -138,7 +129,6 @@ const TOOLS: Anthropic.Beta.BetaTool[] = [
   {
     name: 'delete_list',
     description: 'Delete a whole checklist. Do it when the person asks, for example after shopping.',
-    strict: true,
     input_schema: { type: 'object', additionalProperties: false, required: ['list_id'], properties: { list_id: { type: 'string' } } },
   },
 ];

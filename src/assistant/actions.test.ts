@@ -91,3 +91,18 @@ describe('assistant actions', () => {
     expect(() => runAction('nope', ctx(L.emptyData()), {})).toThrow();
   });
 });
+
+describe('fields the model leaves out', () => {
+  it('adds, updates and lists with only the required fields', () => {
+    let r = run(L.emptyData(), 'add_task', { title: 'לקנות חלב' });
+    const task = L.alive(r.data)[0];
+    expect(task).toMatchObject({ title: 'לקנות חלב', date: null, time: null });
+    r = run(r.data, 'update_task', { task_id: task.id, urgency: 5 });
+    expect(L.alive(r.data)[0]).toMatchObject({ title: 'לקנות חלב', points: 5 });
+    r = run(r.data, 'create_list', { title: 'קניות' });
+    r = run(r.data, 'update_list', { list_id: r.data.lists[0].id, add: ['ביצים'] });
+    expect(r.data.lists[0].items.map((x) => x.text)).toEqual(['ביצים']);
+    r = run(r.data, 'add_weekly', { title: 'הרצאה', weekdays: [1], start: '10:00' });
+    expect(() => run(r.data, 'find_free_time', { from_date: TODAY, to_date: TODAY, duration_min: 30 })).not.toThrow();
+  });
+});
