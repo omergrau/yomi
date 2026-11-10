@@ -61,6 +61,7 @@ describe('phone database', () => {
     expect(d.meta.theme).toBe('dark');
     expect(d.meta.hiddenCalendars).toEqual([]);
     expect(d.lists).toEqual([]);
+    expect(d.alarms).toEqual([]);
     expect(repo.eventsFor('t1')).toHaveLength(1);
     expect(L.totalPoints(d)).toBe(4);
   });
@@ -131,6 +132,16 @@ describe('phone database', () => {
     const repo = openRepo();
     repo.apply({ meta: { hiddenCalendars: ['a', 'b'] } });
     expect(repo.load().meta.hiddenCalendars).toEqual(['a', 'b']);
+  });
+
+  it('keeps alarms', async () => {
+    const { openRepo } = await import('./repo.native');
+    const repo = openRepo();
+    const alarm = { ...L.createAlarm({ date: TODAY, time: '07:15', label: 'השכמה' }, NOW), setAt: NOW };
+    repo.apply({ alarms: [alarm] });
+    expect(repo.load().alarms).toEqual([alarm]);
+    repo.apply({ removeAlarms: [alarm.id] });
+    expect(repo.load().alarms).toEqual([]);
   });
 
   it('keeps lists and their items', async () => {

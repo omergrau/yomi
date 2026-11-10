@@ -2,12 +2,13 @@
 import * as Haptics from 'expo-haptics';
 import { useSyncExternalStore } from 'react';
 import { AppState, Platform } from 'react-native';
+import { dismissClockAlarm, hasClock, setClockAlarm } from './alarmClock';
 import { openRepo } from './data/repo';
 import type { Repo } from './data/repoTypes';
 import { addDays, toIso } from './domain/dates';
 import * as L from './domain/logic';
 import { endLabel } from './domain/order';
-import type { AppData, Change, Checklist, Points, Recurring, Task, TaskEvent } from './domain/types';
+import type { Alarm, AppData, Change, Checklist, Points, Recurring, Task, TaskEvent } from './domain/types';
 import { fmtDay, t as tr } from './i18n';
 import { syncReminders } from './notifications';
 
@@ -61,9 +62,47 @@ function queueReminders() {
 }
 
 function commit(change: Change) {
+  const before = S.data;
   repo.apply(change);
   set({ data: L.applyChange(S.data, change) });
   queueReminders();
+  if (change.alarms?.length || change.removeAlarms?.length) followAlarms(before);
+}
+
+/** An alarm already in the clock app that was removed or moved is turned off there too. */
+function followAlarms(before: AppData) {
+  const now = Date.now();
+  for (const a of before.alarms) {
+    if (!a.setAt || L.alarmAt(a) <= now) continue;
+    const after = S.data.alarms.find((x) => x.id === a.id);
+    if (!after || after.date !== a.date || after.time !== a.time) dismissClockAlarm(a);
+  }
+  setTimeout(() => syncAlarms(), 0);
+}
+
+let syncing = false;
+const failed = new Set<string>();
+/** Hands alarms due within a day to the clock app. It runs only while the app is open, because that opens the clock app. */
+export async function syncAlarms(retry = false) {
+  if (!hasClock || syncing || AppState.currentState !== 'active') return;
+  syncing = true;
+  try {
+    if (retry) failed.clear();
+    const old = L.oldAlarms(S.data, Date.now());
+    if (old.length) commit({ removeAlarms: old });
+    for (const a of L.alarmsToSet(S.data, Date.now())) {
+      if (failed.has(a.id)) continue;
+      if (await setClockAlarm(a)) {
+        const now = S.data.alarms.find((x) => x.id === a.id);
+        if (now && now.time === a.time && now.date === a.date) commit({ alarms: [{ ...now, setAt: Date.now() }] });
+      } else {
+        failed.add(a.id);
+        showToast(tr.alarmFailed);
+      }
+    }
+  } finally {
+    syncing = false;
+  }
 }
 
 /** Applies a change and returns a function that exactly reverses it. */
@@ -81,8 +120,14 @@ function commitUndoable(change: Change): () => void {
       ...(change.removeLists ?? []).map((id) => before.lists.find((x) => x.id === id)).filter(Boolean),
     ] as Checklist[];
     const removeLists = (change.lists ?? []).filter((l) => !before.lists.some((x) => x.id === l.id)).map((l) => l.id);
+    // A restored alarm goes to the clock app again, since it was turned off there.
+    const alarms = [
+      ...(change.alarms ?? []).map((a) => before.alarms.find((x) => x.id === a.id)).filter(Boolean),
+      ...(change.removeAlarms ?? []).map((id) => before.alarms.find((x) => x.id === id)).filter(Boolean),
+    ].map((a) => ({ ...a!, setAt: null })) as Alarm[];
+    const removeAlarms = (change.alarms ?? []).filter((a) => !before.alarms.some((x) => x.id === a.id)).map((a) => a.id);
     repo.removeEvents((change.events ?? []).map((e) => e.id));
-    commit({ tasks, recurring: [...recurring, ...added], dayLogs, lists, removeLists });
+    commit({ tasks, recurring: [...recurring, ...added], dayLogs, lists, removeLists, alarms, removeAlarms });
     hideToast();
   };
 }
@@ -107,6 +152,7 @@ export function ensureDay() {
   if (all.tasks?.length || all.dayLogs?.length || all.events?.length || all.meta?.lastDay) commit(all);
   if (changedDay) set({ today, view: S.view === S.today ? today : S.view });
   if (rolled) showToast(tr.rolled(rolled));
+  syncAlarms();
 }
 
 let started = false;
@@ -126,7 +172,10 @@ export function initStore() {
   ensureDay();
   queueReminders();
   AppState.addEventListener('change', (s) => {
-    if (s === 'active') ensureDay();
+    if (s === 'active') {
+      ensureDay();
+      syncAlarms(true);
+    }
   });
   setInterval(ensureDay, 60000);
 }
@@ -251,6 +300,21 @@ export function removeList(id: string) {
 }
 
 /** Saves a timetable slot as a recurring item, so it appears in its days and reminds like any task. */
+export function addAlarm(input: { date: string; time: string; label: string | null }) {
+  const alarm = L.createAlarm(input, Date.now());
+  commit({ alarms: [alarm] });
+  showToast(L.alarmAt(alarm) - Date.now() <= L.ALARM_WINDOW ? tr.alarmSetNow(alarm.time) : tr.alarmSaved(dayWord(alarm.date), alarm.time));
+}
+export function removeAlarm(id: string) {
+  const alarm = S.data.alarms.find((a) => a.id === id);
+  if (!alarm) return;
+  commit({ removeAlarms: [id] });
+  showToast(tr.alarmRemoved, () => {
+    commit({ alarms: [{ ...alarm, setAt: null }] });
+    hideToast();
+  });
+}
+
 export function saveSlot(id: string | null, f: SlotForm) {
   const input = {
     title: f.title.trim(), groupId: f.groupId, points: f.points, weekdays: [...f.weekdays].sort(), time: f.time,

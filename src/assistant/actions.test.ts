@@ -128,3 +128,21 @@ describe('cancelling one weekly occurrence', () => {
     expect(() => run(r.data, 'cancel_weekly_once', { task_id: L.alive(r.data)[0].id })).toThrow();
   });
 });
+
+describe('alarm clocks', () => {
+  it('sets an alarm, lists it and removes it', () => {
+    let r = run(L.emptyData(), 'set_alarm', { date: '2026-11-11', time: '06:30', label: 'אימון' });
+    expect(r.summary).toContain('06:30');
+    expect(r.data.alarms[0]).toMatchObject({ date: '2026-11-11', time: '06:30', label: 'אימון', setAt: null });
+    const listed = run(r.data, 'get_alarms', {}).result as { alarms: { alarm_id: string }[] };
+    expect(listed.alarms).toHaveLength(1);
+    r = run(r.data, 'delete_alarm', { alarm_id: listed.alarms[0].alarm_id });
+    expect(r.data.alarms).toEqual([]);
+  });
+
+  it('works without a name and refuses a time that passed', () => {
+    expect(run(L.emptyData(), 'set_alarm', { date: '2026-11-12', time: '07:00' }).data.alarms[0].label).toBeNull();
+    expect(() => run(L.emptyData(), 'set_alarm', { date: TODAY, time: '08:00' })).toThrow();
+    expect(() => run(L.emptyData(), 'set_alarm', { date: TODAY, time: '7am' })).toThrow();
+  });
+});

@@ -1,5 +1,5 @@
 import { openDatabaseSync, type SQLiteDatabase } from 'expo-sqlite';
-import type { AppData, Change, Checklist, DayLog, Group, Recurring, Task, TaskEvent } from '../domain/types';
+import type { Alarm, AppData, Change, Checklist, DayLog, Group, Recurring, Task, TaskEvent } from '../domain/types';
 import type { Repo } from './repoTypes';
 
 // Each entry upgrades the database by one version. Never edit an entry after it has shipped; add a new one.
@@ -36,6 +36,9 @@ export const MIGRATIONS = [
   `
   ALTER TABLE tasks ADD COLUMN duration_min INTEGER;
   `,
+  `
+  CREATE TABLE alarms (id TEXT PRIMARY KEY NOT NULL, date TEXT NOT NULL, time TEXT NOT NULL, label TEXT, created_at INTEGER NOT NULL, set_at INTEGER);
+  `,
 ];
 
 function migrate(db: SQLiteDatabase) {
@@ -63,6 +66,8 @@ const putRecurring = (db: SQLiteDatabase, r: Recurring) =>
 const putLog = (db: SQLiteDatabase, l: DayLog) => db.runSync('INSERT OR REPLACE INTO day_logs (date,planned,done) VALUES (?,?,?)', [l.date, l.planned, l.done]);
 const putList = (db: SQLiteDatabase, l: Checklist) =>
   db.runSync('INSERT OR REPLACE INTO lists (id,title,sort,created_at,items) VALUES (?,?,?,?,?)', [l.id, l.title, l.sort, l.createdAt, JSON.stringify(l.items)]);
+const putAlarm = (db: SQLiteDatabase, a: Alarm) =>
+  db.runSync('INSERT OR REPLACE INTO alarms (id,date,time,label,created_at,set_at) VALUES (?,?,?,?,?,?)', [a.id, a.date, a.time, a.label, a.createdAt, a.setAt]);
 const putEvent = (db: SQLiteDatabase, e: TaskEvent) =>
   db.runSync('INSERT OR REPLACE INTO events (id,task_id,type,from_date,to_date,at) VALUES (?,?,?,?,?,?)', [e.id, e.taskId, e.type, e.fromDate, e.toDate, e.at]);
 const putMeta = (db: SQLiteDatabase, m: Partial<AppData['meta']>) => {
@@ -99,10 +104,13 @@ export function openRepo(): Repo {
       const lists = db.getAllSync<any>('SELECT * FROM lists ORDER BY sort').map(
         (r): Checklist => ({ id: r.id, title: r.title, sort: r.sort, createdAt: r.created_at, items: JSON.parse(r.items) }),
       );
+      const alarms = db.getAllSync<any>('SELECT * FROM alarms').map(
+        (r): Alarm => ({ id: r.id, date: r.date, time: r.time, label: r.label, createdAt: r.created_at, setAt: r.set_at }),
+      );
       const meta = Object.fromEntries(db.getAllSync<{ key: string; value: string | null }>('SELECT key,value FROM meta').map((m) => [m.key, m.value]));
       return {
         tasks: Object.fromEntries(tasks.map((t) => [t.id, t])),
-        groups, recurring, lists,
+        groups, recurring, lists, alarms,
         dayLogs: Object.fromEntries(logs.map((l) => [l.date, l])),
         meta: {
           lastDay: meta.lastDay ?? null,
@@ -120,6 +128,8 @@ export function openRepo(): Repo {
         c.dayLogs?.forEach((l) => putLog(db, l));
         c.lists?.forEach((l) => putList(db, l));
         c.removeLists?.forEach((id) => db.runSync('DELETE FROM lists WHERE id = ?', [id]));
+        c.alarms?.forEach((a) => putAlarm(db, a));
+        c.removeAlarms?.forEach((id) => db.runSync('DELETE FROM alarms WHERE id = ?', [id]));
         c.events?.forEach((e) => putEvent(db, e));
         if (c.meta) putMeta(db, c.meta);
       });
@@ -131,12 +141,13 @@ export function openRepo(): Repo {
     allEvents: () => db.getAllSync<EventRow>('SELECT * FROM events ORDER BY at').map(toEvent),
     replaceAll(d, events) {
       db.withTransactionSync(() => {
-        db.execSync('DELETE FROM tasks; DELETE FROM groups_; DELETE FROM recurring; DELETE FROM day_logs; DELETE FROM events; DELETE FROM meta; DELETE FROM lists;');
+        db.execSync('DELETE FROM tasks; DELETE FROM groups_; DELETE FROM recurring; DELETE FROM day_logs; DELETE FROM events; DELETE FROM meta; DELETE FROM lists; DELETE FROM alarms;');
         Object.values(d.tasks).forEach((t) => putTask(db, t));
         d.groups.forEach((g) => putGroup(db, g));
         d.recurring.forEach((r) => putRecurring(db, r));
         Object.values(d.dayLogs).forEach((l) => putLog(db, l));
         d.lists.forEach((l) => putList(db, l));
+        (d.alarms ?? []).forEach((a) => putAlarm(db, a));
         events.forEach((e) => putEvent(db, e));
         putMeta(db, d.meta);
       });

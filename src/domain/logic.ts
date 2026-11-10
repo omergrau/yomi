@@ -1,7 +1,7 @@
 // Every product rule lives here as a pure function, so it can be tested without a device.
 import { addDays, fireTime, toIso, weekDays, weekday } from './dates';
 import { timeWindow } from './order';
-import type { AppData, Backup, Change, Checklist, DayLog, EventType, Group, Points, Recurring, Task, TaskEvent } from './types';
+import type { Alarm, AppData, Backup, Change, Checklist, DayLog, EventType, Group, Points, Recurring, Task, TaskEvent } from './types';
 
 export const STREAK_GOAL = 0.7;
 export const POINTS_PER_LEVEL = 250;
@@ -328,8 +328,14 @@ export function applyChange(d: AppData, c: Change): AppData {
     lists = [...lists.map((l) => up.get(l.id) ?? l), ...c.lists.filter((l) => !lists.some((x) => x.id === l.id))].sort((a, b) => a.sort - b.sort);
   }
   if (c.removeLists?.length) lists = lists.filter((l) => !c.removeLists!.includes(l.id));
+  let alarms = d.alarms;
+  if (c.alarms?.length) {
+    const up = new Map(c.alarms.map((a) => [a.id, a]));
+    alarms = [...alarms.map((a) => up.get(a.id) ?? a), ...c.alarms.filter((a) => !alarms.some((x) => x.id === a.id))];
+  }
+  if (c.removeAlarms?.length) alarms = alarms.filter((a) => !c.removeAlarms!.includes(a.id));
   const dayLogs = c.dayLogs?.length ? { ...d.dayLogs, ...Object.fromEntries(c.dayLogs.map((l) => [l.date, l])) } : d.dayLogs;
-  return { tasks, groups, recurring, dayLogs, lists, meta: c.meta ? { ...d.meta, ...c.meta } : d.meta };
+  return { tasks, groups, recurring, dayLogs, lists, alarms, meta: c.meta ? { ...d.meta, ...c.meta } : d.meta };
 }
 
 export const merge = (a: Change, b: Change): Change => {
@@ -341,6 +347,8 @@ export const merge = (a: Change, b: Change): Change => {
     removeGroups: [...(a.removeGroups ?? []), ...(b.removeGroups ?? [])],
     lists: [...(a.lists ?? []), ...(b.lists ?? [])],
     removeLists: [...(a.removeLists ?? []), ...(b.removeLists ?? [])],
+    alarms: [...(a.alarms ?? []), ...(b.alarms ?? [])],
+    removeAlarms: [...(a.removeAlarms ?? []), ...(b.removeAlarms ?? [])],
     recurring: [...(a.recurring ?? []), ...(b.recurring ?? [])],
     dayLogs: [...(a.dayLogs ?? []), ...(b.dayLogs ?? [])],
     events: [...(a.events ?? []), ...(b.events ?? [])],
@@ -386,7 +394,7 @@ export const toggleItem = (l: Checklist, id: string): Checklist => ({ ...l, item
 export const removeItem = (l: Checklist, id: string): Checklist => ({ ...l, items: l.items.filter((x) => x.id !== id) });
 export const clearDone = (l: Checklist): Checklist => ({ ...l, items: l.items.filter((x) => !x.done) });
 
-export type ReminderJob = { id: string; title: string; fireAt: number; time: string; urgent?: string[] };
+export type ReminderJob = { id: string; title: string; fireAt: number; time: string; urgent?: string[]; alarm?: boolean };
 
 /** From this hour an unfinished task of urgency 4 or 5 turns red, and a reminder repeats every whole hour until 23:00. */
 export const URGENT_FROM_HOUR = 18;
@@ -426,6 +434,36 @@ export function reminderJobs(d: AppData, now: number, limit = 60): ReminderJob[]
   return jobs.sort((a, b) => a.fireAt - b.fireAt).slice(0, limit);
 }
 
+/** The phone's clock app takes an alarm only for the next 24 hours, so it is handed over once it is that close. */
+export const ALARM_WINDOW = 24 * 3600000;
+export const alarmAt = (a: Alarm) => fireTime(a.date, a.time, 0);
+
+export const upcomingAlarms = (d: AppData, now: number) => d.alarms.filter((a) => alarmAt(a) > now).sort((a, b) => alarmAt(a) - alarmAt(b));
+
+export function createAlarm(input: { date: string; time: string; label: string | null }, now: number): Alarm {
+  return { id: newId(now), date: input.date, time: input.time, label: input.label?.trim() || null, createdAt: now, setAt: null };
+}
+
+/** Alarms close enough to go to the clock app that are not there yet. */
+export const alarmsToSet = (d: AppData, now: number) => upcomingAlarms(d, now).filter((a) => !a.setAt && alarmAt(a) - now <= ALARM_WINDOW);
+
+/** Alarms that rang more than a day ago, which nothing needs any more. */
+export const oldAlarms = (d: AppData, now: number) => d.alarms.filter((a) => alarmAt(a) < now - ALARM_WINDOW).map((a) => a.id);
+
+/**
+ * An alarm further ahead than a day waits in the app. A notice the day before asks to open the app, which then
+ * hands it to the clock: at 20:00 the evening before, or at 09:00 the same day for an alarm after 20:00.
+ */
+export function alarmJobs(d: AppData, now: number): ReminderJob[] {
+  const jobs: ReminderJob[] = [];
+  for (const a of upcomingAlarms(d, now)) {
+    if (a.setAt) continue;
+    const fireAt = a.time > '20:00' ? fireTime(a.date, '09:00', 0) : fireTime(addDays(a.date, -1), '20:00', 0);
+    if (fireAt > now && fireAt < alarmAt(a)) jobs.push({ id: `alarm-${a.id}`, title: a.label ?? '', fireAt, time: a.time, alarm: true });
+  }
+  return jobs;
+}
+
 export function makeBackup(d: AppData, events: TaskEvent[], now: number): Backup {
   return {
     app: 'yomi', version: 1, exportedAt: now,
@@ -451,10 +489,12 @@ export function readBackup(raw: string): { data: AppData; events: TaskEvent[] } 
       dayLogs: Object.fromEntries(b.data.dayLogs.map((l) => [l.date, l])),
       // Backups made before lists existed simply have none.
       lists: Array.isArray(b.data.lists) ? b.data.lists : [],
+      // Backups made before alarms existed have none. A restored alarm is handed to this phone's clock again.
+      alarms: Array.isArray(b.data.alarms) ? b.data.alarms.map((a) => ({ ...a, setAt: null })) : [],
       meta: { lastDay: b.data.meta?.lastDay ?? null, theme: b.data.meta?.theme ?? 'system', hiddenCalendars: Array.isArray(b.data.meta?.hiddenCalendars) ? b.data.meta.hiddenCalendars : [] },
     },
     events: b.events,
   };
 }
 
-export const emptyData = (): AppData => ({ tasks: {}, groups: [], recurring: [], dayLogs: {}, lists: [], meta: { lastDay: null, theme: 'system', hiddenCalendars: [] } });
+export const emptyData = (): AppData => ({ tasks: {}, groups: [], recurring: [], dayLogs: {}, lists: [], alarms: [], meta: { lastDay: null, theme: 'system', hiddenCalendars: [] } });

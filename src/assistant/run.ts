@@ -74,6 +74,29 @@ const TOOLS: Anthropic.Beta.BetaTool[] = [
     input_schema: { type: 'object', additionalProperties: false, required: ['task_id'], properties: { task_id: { type: 'string' } } },
   },
   {
+    name: 'get_alarms',
+    description: 'Read the upcoming alarm clocks with their ids.',
+    input_schema: { type: 'object', additionalProperties: false, properties: {} },
+  },
+  {
+    name: 'set_alarm',
+    description: 'Set an alarm clock that rings in the phone clock app on a given day and time. To wake the person relative to their plans (for example an hour before the first lesson tomorrow), read get_schedule first and work out the time.',
+    input_schema: {
+      type: 'object', additionalProperties: false,
+      required: ['date', 'time'],
+      properties: {
+        date: { type: 'string', description: 'YYYY-MM-DD' },
+        time: { type: 'string', description: 'HH:MM, 24-hour' },
+        label: optional('string', 'Short name shown when it rings, such as השכמה לאימון'),
+      },
+    },
+  },
+  {
+    name: 'delete_alarm',
+    description: 'Remove an alarm clock. Use an alarm_id from get_alarms.',
+    input_schema: { type: 'object', additionalProperties: false, required: ['alarm_id'], properties: { alarm_id: { type: 'string' } } },
+  },
+  {
     name: 'add_weekly',
     description: 'Add a fixed weekly item to the timetable, such as a lecture or training. It appears on its weekdays every week and reminds.',
     input_schema: {
@@ -146,6 +169,7 @@ How the app works:
 - Timed tasks can have a length; when their time ends they complete themselves. Weekly items form the timetable (מערכת שעות).
 - Topics (נושאים) group tasks, for example תואר, עבודה, ספורט.
 - When a weekly item (lecture, training) is cancelled for one day, use cancel_weekly_once on that day's occurrence. Never delete or change the weekly item itself for a one-time change.
+- Alarm clocks (שעון מעורר) ring in the phone clock app. Set them with set_alarm; when the person asks to wake up "in time for" something, look at the schedule and allow time to get ready (ask how long if it matters and is unknown).
 - Checklists (רשימות) are plain lists with items to tick, such as a shopping list. They have no dates or points. Read them with get_lists before changing one, and match a list by its title.
 - The week starts on Sunday. The person is in Israel.
 

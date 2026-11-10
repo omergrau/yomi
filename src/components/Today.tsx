@@ -1,4 +1,5 @@
 // The "My day" screen. Lifting and dragging run on the UI thread, using the layer proven in the feasibility test.
+import { router } from 'expo-router';
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import {
@@ -27,7 +28,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import { addDays, parseIso, weekDays } from '../domain/dates';
-import { dayStats, dayTasks, isLateUrgent, levelInfo, poolTasks, streak as streakOf, totalPoints } from '../domain/logic';
+import { ALARM_WINDOW, alarmAt, dayStats, dayTasks, isLateUrgent, levelInfo, poolTasks, streak as streakOf, totalPoints, upcomingAlarms } from '../domain/logic';
 import type { Group, Points, Recurring, Task } from '../domain/types';
 import { t as tr } from '../i18n';
 import { buzzLift, dropOnDay, moveToTomorrow, openSheet, quickAdd, removeFromDay, setView, toggleDone, useApp } from '../store';
@@ -462,6 +463,7 @@ export default function TodayScreen() {
   const idsRef = useRef<string[]>([]);
   const series = useMemo(() => new Map(data.recurring.map((r) => [r.id, r])), [data.recurring]);
   const [clock, setClock] = useState(Date.now());
+  const nextAlarm = upcomingAlarms(data, clock)[0];
   useEffect(() => {
     const id = setInterval(() => setClock(Date.now()), 30000);
     return () => clearInterval(id);
@@ -661,6 +663,8 @@ export default function TodayScreen() {
         level={levelInfo(total).level}
         streak={streak}
         onToday={() => setView(today)}
+        alarm={nextAlarm && alarmAt(nextAlarm) - clock <= ALARM_WINDOW ? nextAlarm.time : null}
+        onAlarm={() => router.push('/alarms')}
       />
       <View style={[s.stripWrap, { borderColor: t.line }]}>
         <Pressable onPress={() => setView(addDays(view, -7))} hitSlop={6} style={s.arrow} accessibilityRole="button" accessibilityLabel={tr.weekPrev}>

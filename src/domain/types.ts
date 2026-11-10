@@ -55,6 +55,12 @@ export type ListItem = { id: string; text: string; done: boolean };
 /** A plain checklist. It earns no points and belongs to no day. */
 export type Checklist = { id: string; title: string; sort: number; createdAt: number; items: ListItem[] };
 
+/**
+ * An alarm the person asked for. It rings in the phone's own clock app, which only takes a time within the
+ * next day, so the app hands it over once it is that close. `setAt` is when it was handed over.
+ */
+export type Alarm = { id: string; date: string; time: string; label: string | null; createdAt: number; setAt: number | null };
+
 export type Meta = { lastDay: string | null; theme: 'system' | 'light' | 'dark'; hiddenCalendars: string[] };
 
 export type AppData = {
@@ -63,6 +69,7 @@ export type AppData = {
   recurring: Recurring[];
   dayLogs: Record<string, DayLog>;
   lists: Checklist[];
+  alarms: Alarm[];
   meta: Meta;
 };
 
@@ -73,6 +80,8 @@ export type Change = {
   removeGroups?: string[];
   lists?: Checklist[];
   removeLists?: string[];
+  alarms?: Alarm[];
+  removeAlarms?: string[];
   recurring?: Recurring[];
   dayLogs?: DayLog[];
   events?: TaskEvent[];

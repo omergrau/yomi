@@ -1,6 +1,6 @@
 import Constants from 'expo-constants';
 import React, { useEffect, useRef, useState } from 'react';
-import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import Animated, { interpolateColor, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { STREAK_GOAL, type DayStats } from '../domain/logic';
 import type { Task } from '../domain/types';
@@ -29,8 +29,8 @@ function useCountUp(value: number) {
 }
 
 export const ScoreHeader = React.forwardRef<any, {
-  date: string; today: string; stats: DayStats; tasks: Task[]; level: number; streak: number; onToday: () => void;
-}>(function ScoreHeader({ date, today, stats, tasks, level, streak, onToday }, scoreRef) {
+  date: string; today: string; stats: DayStats; tasks: Task[]; level: number; streak: number; onToday: () => void; alarm?: string | null; onAlarm?: () => void;
+}>(function ScoreHeader({ date, today, stats, tasks, level, streak, onToday, alarm, onAlarm }, scoreRef) {
   const t = useTheme();
   const { height } = useWindowDimensions();
   const isToday = date === today;
@@ -74,7 +74,15 @@ export const ScoreHeader = React.forwardRef<any, {
     <Animated.View style={[s.wrap, bgStyle]}>
       <View style={s.top}>
         <Text style={[s.date, { color: fg }]}>{`${isToday ? `${tr.today}, ` : ''}יום ${fmtDay(date)}, ${fmtDate(date)}`}</Text>
-        {isToday ? <Text style={[s.rank, { color: fg, opacity: 0.45 }]}>{tr.versionShort(Constants.expoConfig?.version ?? '')}</Text> : <TextLink label={tr.backToToday} onPress={onToday} />}
+        <View style={s.topEnd}>
+          {/* The next alarm, and the way to the alarms screen. */}
+          {onAlarm ? (
+            <Pressable onPress={onAlarm} hitSlop={8} accessibilityRole="button" accessibilityLabel={tr.alarms}>
+              <Text style={[s.alarm, { color: fg, opacity: alarm ? 0.85 : 0.5 }]}>{alarm ? `⏰ ${alarm}` : '⏰'}</Text>
+            </Pressable>
+          ) : null}
+          {isToday ? <Text style={[s.rank, { color: fg, opacity: 0.45 }]}>{tr.versionShort(Constants.expoConfig?.version ?? '')}</Text> : <TextLink label={tr.backToToday} onPress={onToday} />}
+        </View>
       </View>
       <View style={s.score}>
         <View ref={scoreRef} collapsable={false}>
@@ -103,6 +111,8 @@ const s = StyleSheet.create({
   wrap: { paddingHorizontal: 18, paddingTop: 8, paddingBottom: 8 },
   top: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: 12 },
   date: { fontFamily: font.semibold, fontSize: 13.5, flexShrink: 1 },
+  topEnd: { flexDirection: 'row', alignItems: 'baseline', gap: 12 },
+  alarm: { fontFamily: font.semibold, fontSize: 13.5, fontVariant: ['tabular-nums', 'lining-nums'] },
   rank: { fontFamily: font.regular, fontSize: 13.5, opacity: 0.72, fontVariant: ['tabular-nums', 'lining-nums'] },
   score: { flexDirection: 'row', alignItems: 'baseline', gap: 6, marginTop: 0 },
   big: { fontFamily: font.black, fontVariant: ['tabular-nums', 'lining-nums'] },

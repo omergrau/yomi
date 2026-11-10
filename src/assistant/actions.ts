@@ -244,6 +244,32 @@ export function deleteList(ctx: Ctx, input: { list_id: string }): ActionResult {
   return { change: { removeLists: [list!.id] }, result: { deleted: list!.id }, summary: `נמחקה רשימה: ${list!.title}` };
 }
 
+const alarmView = (a: AppData['alarms'][number]) => ({ alarm_id: a.id, date: a.date, time: a.time, label: a.label, in_phone_clock: !!a.setAt });
+
+export function getAlarms(ctx: Ctx): ActionResult {
+  return { result: { alarms: L.upcomingAlarms(ctx.data, ctx.now).map(alarmView) } };
+}
+
+/** An alarm rings in the phone's clock app. One further than a day ahead is handed over the day before. */
+export function setAlarm(ctx: Ctx, input: { date: string; time: string; label: string | null }): ActionResult {
+  need(DATE.test(input.date), 'date must be YYYY-MM-DD');
+  need(TIME.test(input.time), 'time must be HH:MM, 24-hour');
+  need(fireTime(input.date, input.time, 0) > ctx.now, 'that time has already passed');
+  const alarm = L.createAlarm(input, ctx.now);
+  const [, m, d] = input.date.split('-');
+  return {
+    change: { alarms: [alarm] },
+    result: { set: alarmView(alarm) },
+    summary: `שעון מעורר: ${input.time}, ${Number(d)}/${Number(m)}${alarm.label ? ` (${alarm.label})` : ''}`,
+  };
+}
+
+export function deleteAlarm(ctx: Ctx, input: { alarm_id: string }): ActionResult {
+  const alarm = ctx.data.alarms.find((a) => a.id === input.alarm_id);
+  need(!!alarm, 'no such alarm; call get_alarms for ids');
+  return { change: { removeAlarms: [alarm!.id] }, result: { deleted: alarm!.id }, summary: `הוסר שעון מעורר: ${alarm!.time}` };
+}
+
 export const ACTIONS = {
   get_schedule: getSchedule,
   add_task: addTask,
@@ -257,6 +283,9 @@ export const ACTIONS = {
   update_list: updateList,
   delete_list: deleteList,
   cancel_weekly_once: cancelWeeklyOnce,
+  get_alarms: getAlarms,
+  set_alarm: setAlarm,
+  delete_alarm: deleteAlarm,
 } as const;
 
 export type ActionName = keyof typeof ACTIONS;
@@ -268,6 +297,7 @@ const OPTIONAL: Partial<Record<ActionName, Record<string, unknown>>> = {
   add_weekly: { end: null, place: null, urgency: null, topic: null, reminder_min: null },
   find_free_time: { earliest: null, latest: null },
   create_list: { items: [] },
+  set_alarm: { label: null },
   update_list: { title: null, add: [], check: [], uncheck: [], remove: [], clear_checked: false },
 };
 

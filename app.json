@@ -28,7 +28,8 @@
         "android.permission.SCHEDULE_EXACT_ALARM",
         "android.permission.RECEIVE_BOOT_COMPLETED",
         "android.permission.VIBRATE",
-        "android.permission.READ_CALENDAR"
+        "android.permission.READ_CALENDAR",
+        "com.android.alarm.permission.SET_ALARM"
       ]
     },
     "web": {

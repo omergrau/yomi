@@ -1,6 +1,6 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
-import { reminderJobs, urgentJobs, type ReminderJob } from './domain/logic';
+import { alarmJobs, reminderJobs, urgentJobs, type ReminderJob } from './domain/logic';
 import type { AppData } from './domain/types';
 import { t } from './i18n';
 
@@ -61,7 +61,7 @@ export function syncReminders(data: AppData) {
 
 async function sync(data: AppData) {
   const now = Date.now();
-  const jobs = [...reminderJobs(data, now), ...urgentJobs(data, now)];
+  const jobs = [...reminderJobs(data, now), ...urgentJobs(data, now), ...alarmJobs(data, now)];
   const wanted = new Map(jobs.map((j) => [j.id, j]));
   const scheduled = await Notifications.getAllScheduledNotificationsAsync();
   const have = new Set<string>();
@@ -84,6 +84,7 @@ async function sync(data: AppData) {
 }
 
 function content(job: ReminderJob) {
+  if (job.alarm) return { title: t.alarmNoticeTitle(job.time), body: t.alarmNoticeBody };
   if (job.urgent) return { title: t.urgentTitle(job.urgent.length), body: job.urgent.join(' · ') };
   return { title: job.title, body: t.startsAt(job.time) };
 }

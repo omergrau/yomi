@@ -399,3 +399,30 @@ describe('urgent tasks in the evening', () => {
     expect(jobs.every((j) => j.id.startsWith(`urgent-${TOM}-`))).toBe(true);
   });
 });
+
+describe('alarm clocks', () => {
+  const now = fireTime('2026-11-10', '09:00', 0);
+  const make = (date: string, time: string, setAt: number | null = null) => ({ ...L.createAlarm({ date, time, label: null }, now), id: `${date}-${time}`, setAt });
+
+  it('hands an alarm to the clock only within a day of ringing', () => {
+    const d = { ...L.emptyData(), alarms: [make('2026-11-11', '07:00'), make('2026-11-13', '07:00'), make('2026-11-11', '06:00', now)] };
+    expect(L.alarmsToSet(d, now).map((a) => a.id)).toEqual(['2026-11-11-07:00']);
+  });
+
+  it('asks the evening before to open the app for an alarm further ahead', () => {
+    const d = { ...L.emptyData(), alarms: [make('2026-11-13', '07:00'), make('2026-11-14', '21:30'), make('2026-11-11', '07:00', now)] };
+    const jobs = L.alarmJobs(d, now);
+    expect(jobs.map((j) => j.fireAt)).toEqual([fireTime('2026-11-12', '20:00', 0), fireTime('2026-11-14', '09:00', 0)]);
+    expect(jobs.every((j) => j.alarm)).toBe(true);
+  });
+
+  it('forgets alarms that rang over a day ago and keeps older backups readable', () => {
+    const d = { ...L.emptyData(), alarms: [make('2026-11-08', '07:00'), make('2026-11-10', '07:00')] };
+    expect(L.oldAlarms(d, now)).toEqual(['2026-11-08-07:00']);
+    const b = L.makeBackup(L.emptyData(), [], now);
+    const { alarms: _, ...older } = b.data;
+    expect(L.readBackup(JSON.stringify({ ...b, data: older })).data.alarms).toEqual([]);
+    const withAlarm = L.makeBackup({ ...L.emptyData(), alarms: [make('2026-11-11', '07:00', now)] }, [], now);
+    expect(L.readBackup(JSON.stringify(withAlarm)).data.alarms[0].setAt).toBeNull();
+  });
+});
