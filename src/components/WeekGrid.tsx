@@ -80,7 +80,7 @@ export function WeekGrid({ onOpenSlot }: { onOpenSlot: (r: Recurring) => void })
   const series = useMemo(() => new Map(data.recurring.map((r) => [r.id, r])), [data.recurring]);
   const groups = useMemo(() => new Map(data.groups.map((g) => [g.id, g.color])), [data.groups]);
 
-  const { byDay, from, to, recurringOf } = useMemo(() => {
+  const { byDay, from, to, recurringOf } = (() => {
     const keys = new Set(Object.values(data.tasks).filter((x) => x.recurringId).map((x) => `${x.recurringId}|${x.occurrenceDate}`));
     const recurringOf = new Map<string, string>();
     const byDay = new Map<string, AgendaItem[]>();
@@ -102,7 +102,7 @@ export function WeekGrid({ onOpenSlot }: { onOpenSlot: (r: Recurring) => void })
       }
     }
     return { byDay, from, to, recurringOf };
-  }, [data, events, first, today, series, groups]);
+  })();
 
   const hours = Array.from({ length: to - from }, (_, i) => from + i);
   const start = parseIso(first);
