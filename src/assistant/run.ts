@@ -162,6 +162,12 @@ export type AssistantTurn = { reply: string; summaries: string[]; undo: (() => v
 export type AssistantError = 'no-key' | 'bad-key' | 'no-credit' | 'rate' | 'network' | 'refused' | 'other';
 
 let history: Anthropic.Beta.BetaMessageParam[] = [];
+/** Where the conversation stands now, to come back to when a message is edited. */
+export const conversationMark = () => history.length;
+/** Drops everything said from the mark on, so an edited message is asked again in its place. */
+export const rewindConversation = (mark: number) => {
+  history = history.slice(0, mark);
+};
 export const resetConversation = () => {
   history = [];
 };
