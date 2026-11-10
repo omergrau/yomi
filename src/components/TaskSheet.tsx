@@ -14,7 +14,7 @@ import {
 } from '../store';
 import { font, groupColor, useTheme, type Theme } from '../theme';
 
-const HOURS = Array.from({ length: 18 }, (_, i) => i + 6);
+const HOURS = Array.from({ length: 24 }, (_, i) => i);
 const MINUTES = ['00', '15', '30', '45'];
 const pad = (n: number) => String(n).padStart(2, '0');
 const chunk = <T,>(xs: T[], n: number) => Array.from({ length: Math.ceil(xs.length / n) }, (_, i) => xs.slice(i * n, i * n + n));
