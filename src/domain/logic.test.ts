@@ -365,3 +365,37 @@ describe('backup', () => {
     expect(() => L.readBackup(JSON.stringify({ app: 'yomi', version: 1, events: [], data: { groups: [], recurring: [], dayLogs: [], tasks: [{ id: 'x', title: 'y', points: 9 }] } }))).toThrow();
   });
 });
+
+describe('urgent tasks in the evening', () => {
+  const at = (h: number) => new Date(2026, 10, 6, h).getTime();
+  it('turns red only from 18:00, only for urgency 4 or 5, and not when done', () => {
+    let d = base();
+    d = apply(d, L.createTask(d, { title: 'דחוף', groupId: null, points: 5, date: TODAY, time: null, reminderMin: null }, NOW));
+    d = apply(d, L.createTask(d, { title: 'רגיל', groupId: null, points: 3, date: TODAY, time: null, reminderMin: null }, NOW));
+    const [urgent, normal] = ['דחוף', 'רגיל'].map((n) => L.alive(d).find((t) => t.title === n)!);
+    expect(L.isLateUrgent(urgent, at(17))).toBe(false);
+    expect(L.isLateUrgent(urgent, at(18))).toBe(true);
+    expect(L.isLateUrgent(normal, at(20))).toBe(false);
+    expect(L.isLateUrgent({ ...urgent, doneAt: at(17) }, at(20))).toBe(false);
+  });
+
+  it('reminds every whole hour from 18:00 to 23:00 while open, and stops when done', () => {
+    let d = base();
+    d = apply(d, L.createTask(d, { title: 'להגיש עבודה', groupId: null, points: 4, date: TODAY, time: null, reminderMin: null }, NOW));
+    d = apply(d, L.createTask(d, { title: 'לקנות לחם', groupId: null, points: 2, date: TODAY, time: null, reminderMin: null }, NOW));
+    const jobs = L.urgentJobs(d, at(19) + 60000);
+    expect(jobs.map((j) => new Date(j.fireAt).getHours())).toEqual([20, 21, 22, 23]);
+    expect(jobs[0].urgent).toEqual(['להגיש עבודה']);
+    const task = L.alive(d).find((t) => t.title === 'להגיש עבודה')!;
+    const done = apply(d, L.setDone(d, task.id, true, TODAY, at(19)));
+    expect(L.urgentJobs(done, at(19) + 60000)).toEqual([]);
+  });
+
+  it('covers tomorrow too, so it reminds even if the app is not opened', () => {
+    let d = base();
+    d = apply(d, L.createTask(d, { title: 'מחר דחוף', groupId: null, points: 5, date: TOM, time: null, reminderMin: null }, NOW));
+    const jobs = L.urgentJobs(d, NOW);
+    expect(jobs).toHaveLength(6);
+    expect(jobs.every((j) => j.id.startsWith(`urgent-${TOM}-`))).toBe(true);
+  });
+});

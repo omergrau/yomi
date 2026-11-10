@@ -1,5 +1,5 @@
 // Every product rule lives here as a pure function, so it can be tested without a device.
-import { addDays, fireTime, weekDays, weekday } from './dates';
+import { addDays, fireTime, toIso, weekDays, weekday } from './dates';
 import { timeWindow } from './order';
 import type { AppData, Backup, Change, Checklist, DayLog, EventType, Group, Points, Recurring, Task, TaskEvent } from './types';
 
@@ -386,7 +386,35 @@ export const toggleItem = (l: Checklist, id: string): Checklist => ({ ...l, item
 export const removeItem = (l: Checklist, id: string): Checklist => ({ ...l, items: l.items.filter((x) => x.id !== id) });
 export const clearDone = (l: Checklist): Checklist => ({ ...l, items: l.items.filter((x) => !x.done) });
 
-export type ReminderJob = { id: string; title: string; fireAt: number; time: string };
+export type ReminderJob = { id: string; title: string; fireAt: number; time: string; urgent?: string[] };
+
+/** From this hour an unfinished task of urgency 4 or 5 turns red, and a reminder repeats every whole hour until 23:00. */
+export const URGENT_FROM_HOUR = 18;
+export const URGENT_LAST_HOUR = 23;
+export const isUrgent = (t: Task) => t.points >= 4;
+
+/** An urgent task still open at 18:00 of its day, or later. A task left from an earlier day counts too. */
+export function isLateUrgent(t: Task, now: number) {
+  return !t.doneAt && !t.deletedAt && isUrgent(t) && !!t.date && fireTime(t.date, `${URGENT_FROM_HOUR}:00`, 0) <= now;
+}
+
+/** One reminder per whole hour from 18:00 to 23:00, listing the urgent tasks of that day that are still open. */
+export function urgentJobs(d: AppData, now: number, days = 3): ReminderJob[] {
+  const today = toIso(new Date(now));
+  const open = alive(d).filter((t) => !t.doneAt && t.date && isUrgent(t));
+  const jobs: ReminderJob[] = [];
+  for (let i = 0; i < days; i++) {
+    const date = addDays(today, i);
+    // Tasks left from earlier days roll over to today, so they are reminded today.
+    const names = open.filter((t) => (i === 0 ? t.date! <= date : t.date === date)).sort((a, b) => b.points - a.points).map((t) => t.title);
+    if (!names.length) continue;
+    for (let h = URGENT_FROM_HOUR; h <= URGENT_LAST_HOUR; h++) {
+      const fireAt = fireTime(date, `${String(h).padStart(2, '0')}:00`, 0);
+      if (fireAt > now) jobs.push({ id: `urgent-${date}-${h}`, title: names[0], fireAt, time: '', urgent: names });
+    }
+  }
+  return jobs;
+}
 
 export function reminderJobs(d: AppData, now: number, limit = 60): ReminderJob[] {
   const jobs: ReminderJob[] = [];

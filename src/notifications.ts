@@ -1,6 +1,6 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
-import { reminderJobs } from './domain/logic';
+import { reminderJobs, urgentJobs, type ReminderJob } from './domain/logic';
 import type { AppData } from './domain/types';
 import { t } from './i18n';
 
@@ -60,7 +60,8 @@ export function syncReminders(data: AppData) {
 }
 
 async function sync(data: AppData) {
-  const jobs = reminderJobs(data, Date.now());
+  const now = Date.now();
+  const jobs = [...reminderJobs(data, now), ...urgentJobs(data, now)];
   const wanted = new Map(jobs.map((j) => [j.id, j]));
   const scheduled = await Notifications.getAllScheduledNotificationsAsync();
   const have = new Set<string>();
@@ -68,15 +69,21 @@ async function sync(data: AppData) {
     const job = wanted.get(n.identifier);
     const d = n.content.data as { fireAt?: number; yomi?: boolean } | null;
     if (!d?.yomi) continue;
-    if (job && d.fireAt === job.fireAt && n.content.title === job.title) have.add(n.identifier);
+    const want = job ? content(job) : null;
+    if (job && want && d.fireAt === job.fireAt && n.content.title === want.title && n.content.body === want.body) have.add(n.identifier);
     else await Notifications.cancelScheduledNotificationAsync(n.identifier);
   }
   for (const job of jobs) {
     if (have.has(job.id)) continue;
     await Notifications.scheduleNotificationAsync({
       identifier: job.id,
-      content: { title: job.title, body: t.startsAt(job.time), data: { yomi: true, fireAt: job.fireAt, taskId: job.id } },
+      content: { ...content(job), data: { yomi: true, fireAt: job.fireAt, taskId: job.id } },
       trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: job.fireAt, channelId: CHANNEL },
     });
   }
+}
+
+function content(job: ReminderJob) {
+  if (job.urgent) return { title: t.urgentTitle(job.urgent.length), body: job.urgent.join(' · ') };
+  return { title: job.title, body: t.startsAt(job.time) };
 }

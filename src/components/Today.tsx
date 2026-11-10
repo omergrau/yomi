@@ -27,7 +27,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import { addDays, parseIso, weekDays } from '../domain/dates';
-import { dayStats, dayTasks, levelInfo, poolTasks, streak as streakOf, totalPoints } from '../domain/logic';
+import { dayStats, dayTasks, isLateUrgent, levelInfo, poolTasks, streak as streakOf, totalPoints } from '../domain/logic';
 import type { Group, Points, Recurring, Task } from '../domain/types';
 import { t as tr } from '../i18n';
 import { buzzLift, dropOnDay, moveToTomorrow, openSheet, quickAdd, removeFromDay, setView, toggleDone, useApp } from '../store';
@@ -76,13 +76,13 @@ function metaLine(task: Task, groupName: string | undefined, showGroup: boolean,
   return parts.join(' · ');
 }
 
-function RowBody({ task, group, showGroup, series, t }: { task: Task; group?: Group; showGroup: boolean; series?: Recurring; t: Theme }) {
+function RowBody({ task, group, showGroup, series, t, late }: { task: Task; group?: Group; showGroup: boolean; series?: Recurring; t: Theme; late?: boolean }) {
   const done = !!task.doneAt;
   const meta = metaLine(task, group?.name, showGroup, series);
   return (
     <>
       <View style={s.body}>
-        <Text style={[s.title, { color: done ? t.soft : t.ink, textDecorationLine: done ? 'line-through' : 'none' }]}>{task.title}</Text>
+        <Text style={[s.title, { color: done ? t.soft : late ? t.alert : t.ink, fontFamily: late ? font.bold : undefined, textDecorationLine: done ? 'line-through' : 'none' }]}>{task.title}</Text>
         {meta ? (
           <View style={s.meta}>
             {showGroup && group ? <Dot color={group.color} /> : null}
@@ -137,9 +137,9 @@ function useLiftGesture(task: Task, zone: Source, index: number, d: Drag, ref: A
 }
 
 const DayRow = React.memo(function DayRow({
-  task, group, series, index, d, width, onLift, onDrop, onToggle,
+  task, group, series, index, d, width, onLift, onDrop, onToggle, late,
 }: {
-  task: Task; group?: Group; series?: Recurring; index: number; d: Drag; width: number;
+  task: Task; group?: Group; series?: Recurring; index: number; d: Drag; width: number; late: boolean;
   onLift: (x: Task, w: number, h: number, from: Source) => void; onDrop: () => void; onToggle: (x: Task, px: number, py: number) => void;
 }) {
   const t = useTheme();
@@ -200,20 +200,21 @@ const DayRow = React.memo(function DayRow({
         <Text style={[s.underT, { color: t.paper }]}>{tr.swipeTomorrow}</Text>
         <Text style={[s.underT, { color: t.paper }]}>{tr.swipeRemove}</Text>
       </View>
-      <Animated.View style={[s.row, { backgroundColor: t.paper }, fgStyle]}>
+      {/* Urgent and still open at 18:00: a red tint and a red edge. */}
+      <Animated.View style={[s.row, { backgroundColor: late ? t.alertWash : t.paper, borderStartWidth: late ? 3 : 0, borderStartColor: t.alert }, fgStyle]}>
         <Pressable
           onPress={(e) => onToggle(task, e.nativeEvent.pageX, e.nativeEvent.pageY)}
           hitSlop={10}
           accessibilityRole="checkbox"
           accessibilityState={{ checked: done }}
           accessibilityLabel={tr.markDone(task.title)}
-          style={[s.check, { borderColor: done ? t.accent : t.soft, backgroundColor: done ? t.accent : 'transparent' }]}
+          style={[s.check, { borderColor: done ? t.accent : late ? t.alert : t.soft, backgroundColor: done ? t.accent : 'transparent' }]}
         >
           {done ? <Text style={[s.tick, { color: t.onAccent }]}>✓</Text> : null}
         </Pressable>
         <GestureDetector gesture={gesture}>
           <Animated.View style={s.rowMain} accessible accessibilityRole="button" accessibilityLabel={task.title} accessibilityHint={tr.poolHint}>
-            <RowBody task={task} group={group} series={series} showGroup t={t} />
+            <RowBody task={task} group={group} series={series} showGroup t={t} late={late} />
           </Animated.View>
         </GestureDetector>
       </Animated.View>
@@ -709,6 +710,7 @@ export default function TodayScreen() {
                   onLift={onLift}
                   onDrop={onDrop}
                   onToggle={onToggle}
+                  late={isLateUrgent(task, clock)}
                 />
               </Animated.View>
             ))

@@ -4,13 +4,13 @@ import { useApp } from './store';
 
 const light = {
   paper: '#FCFCFA', ink: '#23262A', wash: '#F0F0EC', line: '#E4E4DE', soft: '#A3A5A3', mute: '#5F6367',
-  accent: '#2A7D4F', onAccent: '#FFFFFF',
+  accent: '#2A7D4F', onAccent: '#FFFFFF', alert: '#C2453D', alertWash: '#FBECEA',
   groups: ['#8A8D90', '#4A78B5', '#C0714F', '#3F9393', '#C29A3A', '#8A6BA8', '#B8607A'],
   shadow: '#000000', scrim: 'rgba(20,22,24,0.22)',
 };
 const dark: typeof light = {
   paper: '#16181B', ink: '#ECECE8', wash: '#24272B', line: '#32363B', soft: '#6F7377', mute: '#ADB0B3',
-  accent: '#6FCF97', onAccent: '#10231A',
+  accent: '#6FCF97', onAccent: '#10231A', alert: '#F07B72', alertWash: '#2E2022',
   groups: ['#8A8D90', '#7EA6DC', '#DD9A7C', '#6FBCBC', '#DCBB66', '#B398CF', '#D98CA4'],
   shadow: '#000000', scrim: 'rgba(0,0,0,0.45)',
 };
