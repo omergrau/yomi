@@ -1,7 +1,8 @@
 // A chat with the planning assistant. What it changes shows at once in the app, with one undo per reply.
 import { router, useFocusEffect } from 'expo-router';
 import React, { useCallback, useRef, useState } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import Animated, { useAnimatedKeyboard, useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 import { getApiKey } from '../../assistant/key';
 import { AssistantFailure, ask, resetConversation } from '../../assistant/run';
 import { t as tr } from '../../i18n';
@@ -20,6 +21,16 @@ export default function AssistantScreen() {
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const scroll = useRef<any>(null);
+  // Lift the text box by exactly the part of the keyboard that covers this screen.
+  // The screen ends above the tab bar and the phone's own buttons, so that gap is measured and taken off.
+  const keyboard = useAnimatedKeyboard();
+  const gap = useSharedValue(0);
+  const root = useRef<any>(null);
+  const { height: windowH } = useWindowDimensions();
+  const measure = () => root.current?.measureInWindow((_x: number, y: number, _w: number, h: number) => {
+    if (h > 0) gap.value = Math.max(0, windowH - (y + h));
+  });
+  const lift = useAnimatedStyle(() => ({ paddingBottom: Math.max(0, keyboard.height.value - gap.value) }));
 
   useFocusEffect(
     useCallback(() => {
@@ -73,7 +84,7 @@ export default function AssistantScreen() {
   }
 
   return (
-    <KeyboardAvoidingView behavior="padding" style={[s.flex, { backgroundColor: t.paper }]}>
+    <Animated.View ref={root as never} onLayout={measure} style={[s.flex, { backgroundColor: t.paper }, lift]}>
       <View style={s.head}>
         <Text style={[s.h1, { color: t.ink }]}>{tr.aiTitle}</Text>
         {bubbles.length ? (
@@ -135,6 +146,7 @@ export default function AssistantScreen() {
           placeholderTextColor={t.soft}
           multiline
           maxLength={1000}
+          onFocus={() => setTimeout(() => scroll.current?.scrollToEnd({ animated: true }), 300)}
           style={[s.input, { color: t.ink, backgroundColor: t.wash }]}
           accessibilityLabel={tr.aiPlaceholder}
         />
@@ -148,7 +160,7 @@ export default function AssistantScreen() {
           <Text style={[s.sendT, { color: text.trim() && !busy ? t.onAccent : t.soft }]}>↑</Text>
         </Pressable>
       </View>
-    </KeyboardAvoidingView>
+    </Animated.View>
   );
 }
 
