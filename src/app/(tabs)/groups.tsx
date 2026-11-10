@@ -98,7 +98,7 @@ export default function GroupsScreen() {
           return (
             <View
               key={g.id}
-              style={[s.card, { backgroundColor: t.wash }]}
+              style={[s.card, isOpen || editing ? { backgroundColor: t.wash } : null]}
               onLayout={(e) => {
                 cardY.current[g.id] = e.nativeEvent.layout.y;
               }}
@@ -121,7 +121,7 @@ export default function GroupsScreen() {
                 <Pressable style={s.cardHead} onPress={() => setOpen(isOpen ? null : g.id)} accessibilityRole="button" accessibilityState={{ expanded: isOpen }}>
                   <Dot color={g.color} />
                   <Text style={[s.name, { color: t.ink }]} numberOfLines={1}>{g.name}</Text>
-                  <Text style={[s.sub, { color: t.mute }]}>{tr.groupSummary(mine.length, groupWeekPoints(data, g.id, today))}</Text>
+                  <Text style={[s.sub, { color: t.soft }]} accessibilityLabel={tr.groupSummary(mine.length, groupWeekPoints(data, g.id, today))}>{mine.length || ''}</Text>
                 </Pressable>
               )}
               {isOpen ? (
@@ -161,13 +161,13 @@ export default function GroupsScreen() {
 
 const s = StyleSheet.create({
   flex: { flex: 1 },
-  page: { paddingHorizontal: 16, paddingTop: 18, paddingBottom: 40, gap: 8 },
-  head: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, paddingHorizontal: 2 },
+  page: { paddingHorizontal: 8, paddingTop: 18, paddingBottom: 40, gap: 2 },
+  head: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, paddingHorizontal: 12 },
   h1: { fontFamily: font.serif, fontSize: 28, lineHeight: 36 },
   small: { fontSize: 14.5 },
-  card: { borderRadius: 14, paddingHorizontal: 14 },
-  cardHead: { flexDirection: 'row', alignItems: 'center', gap: 9, minHeight: 54 },
-  name: { flexShrink: 1, fontFamily: font.semibold, fontSize: 16.5 },
+  card: { borderRadius: 14, paddingHorizontal: 12 },
+  cardHead: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 52 },
+  name: { flexShrink: 1, fontFamily: font.medium, fontSize: 16.5 },
   sub: { marginStart: 'auto', fontFamily: font.regular, fontSize: 13.5, fontVariant: ['lining-nums'] },
   inputRow: { flexDirection: 'row', alignItems: 'center', gap: 9, minHeight: 54 },
   input: { flex: 1, fontFamily: font.semibold, fontSize: 16.5, paddingVertical: 6 },

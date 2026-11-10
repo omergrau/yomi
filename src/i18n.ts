@@ -116,7 +116,7 @@ const he = {
   slotEndAfter: 'שעת הסיום צריכה להיות אחרי ההתחלה',
   slotRemove: 'הסרה מהמערכת',
   slotSaved: 'נשמר במערכת השעות',
-  doneSection: (n: number) => `בוצעו · ${n}`,
+  doneSection: (n: number) => (n === 1 ? '✓ בוצעה 1' : `✓ בוצעו ${n}`),
   listNew: '+ רשימה חדשה',
   listNamePh: 'שם הרשימה',
   listNoItems: 'ריקה',
@@ -140,6 +140,7 @@ const he = {
   barToClose: (n: number) => `הרצף נשמר. עוד ${n} נק׳ לסגירת היום`,
   emptyDay: 'אין כאן משימות. אפשר לכתוב למעלה, לגרור מהמשימות שלי או להוסיף עם הפלוס.',
   quickAdd: 'הוספת משימה',
+  quickAddPh: 'הוספה',
   topic: 'נושא',
   noTopic: 'בלי נושא',
   pickTopic: 'בחירת נושא',
@@ -296,6 +297,12 @@ export const t = he;
 export const fmtDate = (s: string) => {
   const d = parseIso(s);
   return `${d.getDate()} ${t.months[d.getMonth()]}`;
+};
+
+/** "10.11", for places where the weekday already says which day it is. */
+export const fmtShort = (s: string) => {
+  const d = parseIso(s);
+  return `${d.getDate()}.${d.getMonth() + 1}`;
 };
 
 export const fmtDay = (s: string) => t.days[parseIso(s).getDay()];

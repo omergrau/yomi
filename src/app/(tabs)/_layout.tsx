@@ -61,7 +61,7 @@ function AiTag() {
       accessibilityLabel={tr.aiShortcutLabel}
       style={({ pressed }) => [
         s.ai,
-        { backgroundColor: `${t.accent}1F`, borderColor: `${t.accent}66`, shadowColor: t.accent, transform: [{ scale: pressed ? 0.94 : 1 }] },
+        { backgroundColor: `${t.accent}1A`, transform: [{ scale: pressed ? 0.94 : 1 }] },
       ]}
     >
       <Animated.Text style={[s.aiStar, { color: t.accent }, sparkle]}>✦</Animated.Text>
@@ -108,7 +108,7 @@ function Bar() {
   });
 
   return (
-    <View style={[s.bar, { backgroundColor: t.paper, borderTopColor: t.line }]}>
+    <View style={[s.bar, { backgroundColor: t.paper }]}>
       <View style={s.mid}>
         <Pressable style={[s.add, { backgroundColor: t.accent }]} onPress={() => openSheet({ id: null })} accessibilityRole="button" accessibilityLabel={tr.nav.add}>
           <Text style={[s.plus, { color: t.onAccent }]}>+</Text>
@@ -130,7 +130,6 @@ function Bar() {
               }}
             />
           ))}
-          <View pointerEvents="none" style={[s.dot, { backgroundColor: t.accent }]} />
         </View>
       </GestureDetector>
     </View>
@@ -152,19 +151,17 @@ export default function TabsLayout() {
 }
 
 const s = StyleSheet.create({
-  bar: { flexDirection: 'row', height: 60, alignItems: 'center', borderTopWidth: 1 },
+  bar: { flexDirection: 'row', height: 62, alignItems: 'center' },
   wheel: { flex: 1, height: '100%', overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
   item: { position: 'absolute', width: ITEM_W, height: '100%' },
   itemHit: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   label: { fontSize: 15 },
-  dot: { position: 'absolute', bottom: 8, width: 5, height: 5, borderRadius: 3 },
   mid: { width: 62, alignItems: 'center' },
   ai: {
-    flexDirection: 'row', alignItems: 'center', gap: 4, height: 30, paddingStart: 9, paddingEnd: 11, borderRadius: 15, borderWidth: 1, marginEnd: 4,
-    elevation: 3, shadowOpacity: 0.25, shadowRadius: 6, shadowOffset: { width: 0, height: 2 },
+    flexDirection: 'row', alignItems: 'center', gap: 4, height: 30, paddingStart: 9, paddingEnd: 11, borderRadius: 15, marginEnd: 4,
   },
   aiStar: { fontSize: 14, lineHeight: 17 },
   aiT: { fontFamily: font.bold, fontSize: 13, letterSpacing: 0.6 },
-  add: { width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center' },
+  add: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
   plus: { fontFamily: font.light, fontSize: 32, lineHeight: 36 },
 });

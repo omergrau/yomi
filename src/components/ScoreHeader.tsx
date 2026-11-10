@@ -1,10 +1,10 @@
-import Constants from 'expo-constants';
+// The day's score: the date, the points and one thin bar with the streak mark. The words stay for screen readers.
 import React, { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import Animated, { interpolateColor, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { STREAK_GOAL, type DayStats } from '../domain/logic';
 import type { Task } from '../domain/types';
-import { fmtDate, fmtDay, t as tr } from '../i18n';
+import { fmtDay, fmtShort, t as tr } from '../i18n';
 import { font, useTheme } from '../theme';
 import { TextLink } from './ui';
 
@@ -30,7 +30,7 @@ function useCountUp(value: number) {
 
 export const ScoreHeader = React.forwardRef<any, {
   date: string; today: string; stats: DayStats; tasks: Task[]; level: number; streak: number; onToday: () => void; alarm?: string | null; onAlarm?: () => void;
-}>(function ScoreHeader({ date, today, stats, tasks, level, streak, onToday, alarm, onAlarm }, scoreRef) {
+}>(function ScoreHeader({ date, today, stats, onToday, alarm, onAlarm }, scoreRef) {
   const t = useTheme();
   const { height } = useWindowDimensions();
   const isToday = date === today;
@@ -47,20 +47,8 @@ export const ScoreHeader = React.forwardRef<any, {
 
   const fg = stats.closed ? t.onAccent : t.ink;
   const fill = stats.closed ? t.onAccent : t.accent;
-  const track = stats.closed ? t.onAccent : t.wash;
-  const cut = stats.closed ? t.accent : t.paper;
-  const big = height < 720 ? 40 : 46;
-
-  // Finished work comes first, so the bar always loads as one unbroken run.
-  const ordered = [...tasks.filter((x) => x.doneAt), ...tasks.filter((x) => !x.doneAt)];
-  const planned = ordered.reduce((a, x) => a + x.points, 0);
-  const scale = Math.max(stats.total, planned, 1);
-  const cuts: number[] = [];
-  let run = 0;
-  ordered.slice(0, -1).forEach((x) => {
-    run += x.points;
-    cuts.push((run / scale) * 100);
-  });
+  const track = stats.closed ? 'rgba(255,255,255,0.28)' : t.wash;
+  const big = height < 720 ? 44 : 52;
 
   const message = !stats.total
     ? tr.barEmpty
@@ -73,54 +61,51 @@ export const ScoreHeader = React.forwardRef<any, {
   return (
     <Animated.View style={[s.wrap, bgStyle]}>
       <View style={s.top}>
-        <Text style={[s.date, { color: fg }]}>{`${isToday ? `${tr.today}, ` : ''}יום ${fmtDay(date)}, ${fmtDate(date)}`}</Text>
+        <Text style={[s.date, { color: fg }]}>{`${fmtDay(date)}, ${fmtShort(date)}`}</Text>
         <View style={s.topEnd}>
+          {!isToday ? <TextLink label={tr.backToToday} onPress={onToday} /> : null}
           {/* The next alarm, and the way to the alarms screen. */}
           {onAlarm ? (
-            <Pressable onPress={onAlarm} hitSlop={8} accessibilityRole="button" accessibilityLabel={tr.alarms}>
-              <Text style={[s.alarm, { color: fg, opacity: alarm ? 0.85 : 0.5 }]}>{alarm ? `⏰ ${alarm}` : '⏰'}</Text>
+            <Pressable onPress={onAlarm} hitSlop={10} accessibilityRole="button" accessibilityLabel={tr.alarms}>
+              <Text style={[s.alarm, { color: fg, opacity: alarm ? 0.75 : 0.35 }]}>{alarm ? `⏰ ${alarm}` : '⏰'}</Text>
             </Pressable>
           ) : null}
-          {isToday ? <Text style={[s.rank, { color: fg, opacity: 0.45 }]}>{tr.versionShort(Constants.expoConfig?.version ?? '')}</Text> : <TextLink label={tr.backToToday} onPress={onToday} />}
         </View>
       </View>
       <View style={s.score}>
         <View ref={scoreRef} collapsable={false}>
-          <Text style={[s.big, { color: fg, fontSize: big, lineHeight: big * 1.08 }]} accessibilityLabel={`${stats.done} ${tr.points}`}>{shown}</Text>
+          <Text
+            style={[s.big, { color: fg, fontSize: big, lineHeight: big * 1.08 }]}
+            accessibilityLabel={`${stats.done} / ${stats.total} ${tr.pts}, ${tr.ofTasks(stats.doneCount, stats.count)}`}
+          >
+            {shown}
+          </Text>
         </View>
-        <Text style={[s.total, { color: fg }]}>{`/ ${stats.total} ${tr.pts}`}</Text>
-        <Text style={[s.count, { color: fg }]}>{tr.ofTasks(stats.doneCount, stats.count)}</Text>
+        <Text style={[s.total, { color: fg }]}>{`/ ${stats.total}`}</Text>
       </View>
       <View
         style={[s.bar, { backgroundColor: track }]}
         accessibilityRole="progressbar"
+        accessibilityLabel={message}
         accessibilityValue={{ min: 0, max: 100, now: Math.round(stats.pct * 100) }}
       >
         <Animated.View style={[s.fill, { backgroundColor: fill }, fillStyle]} />
-        {cuts.map((c, i) => (
-          <View key={i} style={[s.cut, { start: `${c}%`, backgroundColor: cut }]} />
-        ))}
-        {stats.total ? <View style={[s.mark, { start: `${STREAK_GOAL * 100}%`, backgroundColor: fg }]} /> : null}
+        {stats.total && !stats.closed ? <View style={[s.mark, { start: `${STREAK_GOAL * 100}%`, backgroundColor: fg }]} /> : null}
       </View>
-      <Text style={[s.msg, { color: fg }]} accessibilityLiveRegion="polite">{message}</Text>
     </Animated.View>
   );
 });
 
 const s = StyleSheet.create({
-  wrap: { paddingHorizontal: 18, paddingTop: 8, paddingBottom: 8 },
+  wrap: { paddingHorizontal: 20, paddingTop: 10, paddingBottom: 12 },
   top: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: 12 },
-  date: { fontFamily: font.semibold, fontSize: 13.5, flexShrink: 1 },
-  topEnd: { flexDirection: 'row', alignItems: 'baseline', gap: 12 },
-  alarm: { fontFamily: font.semibold, fontSize: 13.5, fontVariant: ['tabular-nums', 'lining-nums'] },
-  rank: { fontFamily: font.regular, fontSize: 13.5, opacity: 0.72, fontVariant: ['tabular-nums', 'lining-nums'] },
-  score: { flexDirection: 'row', alignItems: 'baseline', gap: 6, marginTop: 0 },
+  date: { fontFamily: font.medium, fontSize: 14, opacity: 0.7, flexShrink: 1, fontVariant: ['tabular-nums', 'lining-nums'] },
+  topEnd: { flexDirection: 'row', alignItems: 'baseline', gap: 14 },
+  alarm: { fontFamily: font.medium, fontSize: 14, fontVariant: ['tabular-nums', 'lining-nums'] },
+  score: { flexDirection: 'row', alignItems: 'baseline', gap: 6, marginTop: 2 },
   big: { fontFamily: font.black, fontVariant: ['tabular-nums', 'lining-nums'] },
-  total: { fontFamily: font.light, fontSize: 19, opacity: 0.72, fontVariant: ['lining-nums'] },
-  count: { fontFamily: font.regular, fontSize: 13.5, opacity: 0.72, marginStart: 'auto' },
-  bar: { height: 16, borderRadius: 6, marginTop: 4 },
-  fill: { position: 'absolute', top: 0, bottom: 0, start: 0, borderRadius: 6 },
-  cut: { position: 'absolute', top: 0, bottom: 0, width: 2, marginStart: -1 },
-  mark: { position: 'absolute', top: -4, bottom: -4, width: 2, marginStart: -1 },
-  msg: { fontFamily: font.semibold, fontSize: 13.5, marginTop: 5, minHeight: 18 },
+  total: { fontFamily: font.light, fontSize: 20, opacity: 0.45, fontVariant: ['lining-nums'] },
+  bar: { height: 6, borderRadius: 3, marginTop: 8 },
+  fill: { position: 'absolute', top: 0, bottom: 0, start: 0, borderRadius: 3 },
+  mark: { position: 'absolute', top: -3, bottom: -3, width: 2, marginStart: -1, opacity: 0.35 },
 });

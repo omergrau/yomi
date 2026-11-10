@@ -45,7 +45,7 @@ function Cell({ label, on, off, wide, color, onPress, t, a11y }: {
       accessibilityRole="button"
       accessibilityState={{ selected: !!on, disabled: !!off }}
       accessibilityLabel={a11y ?? label}
-      style={[wide ? s.chip : s.cell, { backgroundColor: on ? t.ink : t.wash, opacity: off ? 0.35 : 1 }]}
+      style={[wide ? s.chip : s.cell, { backgroundColor: on ? t.ink : 'transparent', opacity: off ? 0.3 : 1 }]}
     >
       {color ? <View style={[s.dot, { backgroundColor: color }]} /> : null}
       <Text style={[s.cellT, { color: on ? t.paper : t.ink, fontFamily: on ? font.semibold : font.regular }]}>{label}</Text>

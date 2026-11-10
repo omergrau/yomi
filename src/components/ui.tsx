@@ -5,12 +5,13 @@ import { t as tr } from '../i18n';
 import { useApp } from '../store';
 import { font, groupColor, useTheme } from '../theme';
 
-export function Pips({ points, muted }: { points: number; muted?: boolean }) {
+export function Pips({ points, muted, hot }: { points: number; muted?: boolean; hot?: boolean }) {
   const t = useTheme();
+  const on = muted ? t.line : hot ? t.alert : t.mute;
   return (
     <View style={s.pips} accessible accessibilityLabel={tr.ptsLabel(points)}>
       {[1, 2, 3, 4, 5].map((i) => (
-        <View key={i} style={[s.pip, { backgroundColor: i <= points ? (muted ? t.soft : t.ink) : t.line }]} />
+        <View key={i} style={[s.pip, { backgroundColor: i <= points ? on : t.line, opacity: i <= points || muted ? 1 : 0.6 }]} />
       ))}
     </View>
   );
@@ -74,8 +75,8 @@ export function ToastHost() {
 }
 
 const s = StyleSheet.create({
-  pips: { flexDirection: 'row', gap: 2, alignItems: 'center' },
-  pip: { width: 3.5, height: 13 },
+  pips: { flexDirection: 'row', gap: 3, alignItems: 'center' },
+  pip: { width: 5, height: 5, borderRadius: 3 },
   chip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999 },
   chipT: { fontFamily: font.medium, fontSize: 14.5 },
   btn: { flex: 1, paddingVertical: 12, paddingHorizontal: 8, alignItems: 'center', borderWidth: 1.5, borderRadius: 10 },

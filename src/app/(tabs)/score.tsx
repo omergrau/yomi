@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
-import React from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { TextLink } from '../../components/ui';
 import { parseIso } from '../../domain/dates';
 import { bestDay, groupWeekPoints, levelInfo, streak, totalPoints, weekSeries } from '../../domain/logic';
@@ -13,6 +13,7 @@ const CHART_H = 90;
 export default function ScoreScreen() {
   const t = useTheme();
   const { data, today } = useApp();
+  const [how, setHow] = useState(false);
   const total = totalPoints(data);
   const lvl = levelInfo(total);
   const series = weekSeries(data, today);
@@ -34,7 +35,7 @@ export default function ScoreScreen() {
       </View>
       <Text style={[s.cap, { color: t.mute }]}>{tr.totalLine(total.toLocaleString('he-IL'), lvl.toNext, lvl.level + 1)}</Text>
 
-      <View style={[s.stats, { borderColor: t.line }]}>
+      <View style={s.stats}>
         {[
           { v: streak(data, today), l: tr.daysInRow },
           { v: week, l: tr.thisWeek },
@@ -47,7 +48,7 @@ export default function ScoreScreen() {
         ))}
       </View>
 
-      <Text style={[s.h2, { color: t.ink }]}>{tr.pointsByDay}</Text>
+      <Text style={[s.h2, { color: t.mute }]}>{tr.pointsByDay}</Text>
       <View style={s.chart}>
         {series.map((x) => {
           const future = x.day > today;
@@ -61,7 +62,7 @@ export default function ScoreScreen() {
         })}
       </View>
 
-      {byGroup.length ? <Text style={[s.h2, { color: t.ink }]}>{tr.pointsByGroup}</Text> : null}
+      {byGroup.length ? <Text style={[s.h2, { color: t.mute }]}>{tr.pointsByGroup}</Text> : null}
       {byGroup.map(({ g, v }) => (
         <View key={g.id} style={s.gRow}>
           <Text style={[s.gName, { color: t.ink }]} numberOfLines={1}>{g.name}</Text>
@@ -72,12 +73,17 @@ export default function ScoreScreen() {
         </View>
       ))}
 
-      <Text style={[s.h2, { color: t.ink }]}>{tr.howTitle}</Text>
-      <View style={s.rules}>
-        {tr.how.map((line) => (
-          <Text key={line} style={[s.rule, { color: t.mute }]}>{line}</Text>
-        ))}
-      </View>
+      {/* The rules fold away under one line. */}
+      <Pressable onPress={() => setHow(!how)} hitSlop={8} style={s.howBtn} accessibilityRole="button" accessibilityState={{ expanded: how }}>
+        <Text style={[s.howT, { color: t.mute }]}>{tr.howTitle}</Text>
+      </Pressable>
+      {how ? (
+        <View style={s.rules}>
+          {tr.how.map((line) => (
+            <Text key={line} style={[s.rule, { color: t.mute }]}>{line}</Text>
+          ))}
+        </View>
+      ) : null}
     </ScrollView>
   );
 }
@@ -88,14 +94,14 @@ const s = StyleSheet.create({
   lvl: { flexDirection: 'row', alignItems: 'baseline', gap: 10 },
   lvlN: { fontFamily: font.black, fontSize: 96, lineHeight: 104, fontVariant: ['lining-nums'] },
   lvlT: { fontFamily: font.light, fontSize: 22 },
-  bar: { height: 14, borderRadius: 7, overflow: 'hidden', marginTop: 6 },
+  bar: { height: 6, borderRadius: 3, overflow: 'hidden', marginTop: 6 },
   fill: { height: '100%' },
-  cap: { fontFamily: font.regular, fontSize: 14.5, marginTop: 6, fontVariant: ['lining-nums'] },
-  stats: { flexDirection: 'row', gap: 10, marginTop: 22, paddingVertical: 12, borderTopWidth: 1, borderBottomWidth: 1 },
+  cap: { fontFamily: font.regular, fontSize: 13.5, marginTop: 8, fontVariant: ['lining-nums'] },
+  stats: { flexDirection: 'row', gap: 10, marginTop: 26 },
   stat: { flex: 1, alignItems: 'flex-start' },
   statN: { fontFamily: font.serif, fontSize: 28, lineHeight: 34, fontVariant: ['lining-nums'] },
-  statL: { fontFamily: font.regular, fontSize: 13.5 },
-  h2: { fontFamily: font.serif, fontSize: 20, marginTop: 24, marginBottom: 10 },
+  statL: { fontFamily: font.regular, fontSize: 13 },
+  h2: { fontFamily: font.semibold, fontSize: 14.5, marginTop: 30, marginBottom: 12 },
   chart: { flexDirection: 'row', gap: 6, alignItems: 'flex-end', height: CHART_H + 44 },
   col: { flex: 1, alignItems: 'stretch', gap: 3 },
   val: { fontFamily: font.regular, fontSize: 13, textAlign: 'center', fontVariant: ['lining-nums'] },
@@ -103,9 +109,11 @@ const s = StyleSheet.create({
   colL: { fontSize: 12.5, textAlign: 'center' },
   gRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 7 },
   gName: { width: 62, fontFamily: font.regular, fontSize: 14.5 },
-  gTrack: { flex: 1, height: 12, borderRadius: 6, overflow: 'hidden' },
+  gTrack: { flex: 1, height: 6, borderRadius: 3, overflow: 'hidden' },
   gFill: { height: '100%' },
-  gVal: { width: 30, fontFamily: font.bold, fontSize: 14.5, fontVariant: ['tabular-nums', 'lining-nums'] },
-  rules: { gap: 6 },
-  rule: { fontFamily: font.regular, fontSize: 15 },
+  gVal: { width: 30, fontFamily: font.medium, fontSize: 14, fontVariant: ['tabular-nums', 'lining-nums'] },
+  howBtn: { alignSelf: 'flex-start', marginTop: 30 },
+  howT: { fontFamily: font.medium, fontSize: 14, textDecorationLine: 'underline' },
+  rules: { gap: 6, marginTop: 10 },
+  rule: { fontFamily: font.regular, fontSize: 14.5 },
 });

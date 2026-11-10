@@ -40,6 +40,7 @@ import { TopicPicker } from './TopicPicker';
 import { Chip, Dot, Pips } from './ui';
 
 const AnimatedScroll = Animated.createAnimatedComponent(ScrollView);
+let doneShown = false;
 const PEEK = 59;
 const SWIPE_COMMIT = 92;
 
@@ -65,33 +66,38 @@ type Drag = {
   rootRef: AnimatedRef<View>;
 };
 
-function metaLine(task: Task, groupName: string | undefined, showGroup: boolean, series?: Recurring) {
-  const parts: string[] = [];
+/** What screen readers hear in place of the words the row no longer shows. */
+function spoken(task: Task, group: Group | undefined, series?: Recurring) {
+  const parts: string[] = [task.title];
   if (task.time) parts.push(endLabel(task, series) ? `${task.time}–${endLabel(task, series)}` : task.time);
   if (series?.place) parts.push(series.place);
-  if (showGroup && groupName) parts.push(groupName);
+  if (group) parts.push(group.name);
   if (task.recurringId) parts.push(tr.fixed);
   if (task.reminderMin !== null) parts.push(tr.reminder);
   if (task.deferrals === 1) parts.push(tr.deferredOnce);
   if (task.deferrals > 1) parts.push(tr.deferred(task.deferrals));
-  return parts.join(' · ');
+  return parts.join(', ');
 }
 
-function RowBody({ task, group, showGroup, series, t, late }: { task: Task; group?: Group; showGroup: boolean; series?: Recurring; t: Theme; late?: boolean }) {
+function RowBody({ task, group, showGroup, t, late, next }: { task: Task; group?: Group; showGroup: boolean; series?: Recurring; t: Theme; late?: boolean; next?: boolean }) {
   const done = !!task.doneAt;
-  const meta = metaLine(task, group?.name, showGroup, series);
   return (
     <>
       <View style={s.body}>
-        <Text style={[s.title, { color: done ? t.soft : late ? t.alert : t.ink, fontFamily: late ? font.bold : undefined, textDecorationLine: done ? 'line-through' : 'none' }]}>{task.title}</Text>
-        {meta ? (
-          <View style={s.meta}>
-            {showGroup && group ? <Dot color={group.color} /> : null}
-            <Text style={[s.metaT, { color: t.mute }]}>{meta}</Text>
-          </View>
-        ) : null}
+        <Text
+          numberOfLines={2}
+          style={[s.title, { color: done ? t.soft : late ? t.alert : t.ink, fontFamily: late ? font.bold : font.medium, textDecorationLine: done ? 'line-through' : 'none' }]}
+        >
+          {task.title}
+          {task.recurringId ? <Text style={{ color: t.soft }}>{'  ↻'}</Text> : null}
+        </Text>
+        {showGroup && group && group.color ? <Dot color={group.color} size={7} /> : null}
+        {next && !done ? <View style={[s.nextDot, { backgroundColor: t.accent }]} /> : null}
       </View>
-      <Pips points={task.points} muted={done} />
+      {task.time ? (
+        <Text style={[s.time, { color: next && !done ? t.accent : t.mute, fontFamily: next && !done ? font.bold : font.medium }]}>{task.time}</Text>
+      ) : null}
+      <Pips points={task.points} muted={done} hot={late || task.points === 5} />
     </>
   );
 }
@@ -138,9 +144,9 @@ function useLiftGesture(task: Task, zone: Source, index: number, d: Drag, ref: A
 }
 
 const DayRow = React.memo(function DayRow({
-  task, group, series, index, d, width, onLift, onDrop, onToggle, late,
+  task, group, series, index, d, width, onLift, onDrop, onToggle, late, next,
 }: {
-  task: Task; group?: Group; series?: Recurring; index: number; d: Drag; width: number; late: boolean;
+  task: Task; group?: Group; series?: Recurring; index: number; d: Drag; width: number; late: boolean; next: boolean;
   onLift: (x: Task, w: number, h: number, from: Source) => void; onDrop: () => void; onToggle: (x: Task, px: number, py: number) => void;
 }) {
   const t = useTheme();
@@ -196,13 +202,13 @@ const DayRow = React.memo(function DayRow({
 
   const done = !!task.doneAt;
   return (
-    <Animated.View ref={ref} collapsable={false} style={[{ borderBottomColor: t.line, borderBottomWidth: 1 }, rowStyle]}>
+    <Animated.View ref={ref} collapsable={false} style={rowStyle}>
       <View style={[StyleSheet.absoluteFill, s.under, { backgroundColor: t.ink }]}>
         <Text style={[s.underT, { color: t.paper }]}>{tr.swipeTomorrow}</Text>
         <Text style={[s.underT, { color: t.paper }]}>{tr.swipeRemove}</Text>
       </View>
-      {/* Urgent and still open at 18:00: a red tint and a red edge. */}
-      <Animated.View style={[s.row, { backgroundColor: late ? t.alertWash : t.paper, borderStartWidth: late ? 3 : 0, borderStartColor: t.alert }, fgStyle]}>
+      {/* Urgent and still open at 18:00: the title and its dots turn red. */}
+      <Animated.View style={[s.row, { backgroundColor: t.paper }, fgStyle]}>
         <Pressable
           onPress={(e) => onToggle(task, e.nativeEvent.pageX, e.nativeEvent.pageY)}
           hitSlop={10}
@@ -214,8 +220,8 @@ const DayRow = React.memo(function DayRow({
           {done ? <Text style={[s.tick, { color: t.onAccent }]}>✓</Text> : null}
         </Pressable>
         <GestureDetector gesture={gesture}>
-          <Animated.View style={s.rowMain} accessible accessibilityRole="button" accessibilityLabel={task.title} accessibilityHint={tr.poolHint}>
-            <RowBody task={task} group={group} series={series} showGroup t={t} late={late} />
+          <Animated.View style={s.rowMain} accessible accessibilityRole="button" accessibilityLabel={spoken(task, group, series)} accessibilityHint={tr.poolHint}>
+            <RowBody task={task} group={group} series={series} showGroup t={t} late={late} next={next} />
           </Animated.View>
         </GestureDetector>
       </Animated.View>
@@ -227,7 +233,7 @@ const DayRow = React.memo(function DayRow({
 function DoneRow({ task, group, series, onToggle }: { task: Task; group?: Group; series?: Recurring; onToggle: (x: Task, px: number, py: number) => void }) {
   const t = useTheme();
   return (
-    <View style={[s.row, { backgroundColor: t.paper, borderBottomColor: t.line, borderBottomWidth: 1 }]}>
+    <View style={[s.row, { backgroundColor: t.paper }]}>
       <Pressable
         onPress={(e) => onToggle(task, e.nativeEvent.pageX, e.nativeEvent.pageY)}
         hitSlop={10}
@@ -238,7 +244,7 @@ function DoneRow({ task, group, series, onToggle }: { task: Task; group?: Group;
       >
         <Text style={[s.tick, { color: t.onAccent }]}>✓</Text>
       </Pressable>
-      <Pressable style={s.rowMain} onPress={() => openSheet({ id: task.id })} accessibilityRole="button" accessibilityLabel={task.title}>
+      <Pressable style={s.rowMain} onPress={() => openSheet({ id: task.id })} accessibilityRole="button" accessibilityLabel={spoken(task, group, series)}>
         <RowBody task={task} group={group} series={series} showGroup t={t} />
       </Pressable>
     </View>
@@ -260,7 +266,7 @@ function PoolRow({ task, index, d, onLift, onDrop }: { task: Task; index: number
   const style = useAnimatedStyle(() => ({ opacity: d.active.value === id ? 0.25 : 1 }));
   return (
     <GestureDetector gesture={gesture}>
-      <Animated.View ref={ref} collapsable={false} style={[s.poolRow, { borderBottomColor: t.line }, style]} accessible accessibilityRole="button" accessibilityLabel={task.title}>
+      <Animated.View ref={ref} collapsable={false} style={[s.poolRow, style]} accessible accessibilityRole="button" accessibilityLabel={spoken(task, undefined)}>
         <RowBody task={task} showGroup={false} t={t} />
       </Animated.View>
     </GestureDetector>
@@ -283,7 +289,7 @@ function QuickAdd({ t, groups }: { t: Theme; groups: Group[] }) {
   };
   const open = !!text.trim();
   return (
-    <View style={[s.quickBox, { backgroundColor: t.wash }]}>
+    <View style={[s.quickBox, open ? { backgroundColor: t.wash } : null]}>
       <View style={s.quick}>
         <Text style={[s.quickPlus, { color: t.accent }]}>+</Text>
         <TextInput
@@ -300,8 +306,8 @@ function QuickAdd({ t, groups }: { t: Theme; groups: Group[] }) {
           submitBehavior="submit"
           returnKeyType="done"
           maxLength={120}
-          placeholder={tr.quickAdd}
-          placeholderTextColor={t.mute}
+          placeholder={tr.quickAddPh}
+          placeholderTextColor={t.soft}
           style={[s.quickIn, { color: t.ink }]}
           accessibilityLabel={tr.quickAdd}
         />
@@ -358,25 +364,26 @@ function QuickAdd({ t, groups }: { t: Theme; groups: Group[] }) {
 }
 
 function DayCell({ date, index, highlight, today, selected, stats, onPress, t }: {
-  date: string; index: number; highlight: SharedValue<number>; today: string; selected: boolean; stats: { pct: number; total: number }; onPress: () => void; t: Theme;
+  date: string; index: number; highlight: SharedValue<number>; today: string; selected: boolean; stats: { pct: number; total: number; closed: boolean }; onPress: () => void; t: Theme;
 }) {
   const d = parseIso(date);
   const past = date < today;
+  const isToday = date === today;
   const hlBg = useAnimatedStyle(() => ({ opacity: highlight.value === index && !past ? 1 : 0 }));
+  const fg = selected ? t.paper : isToday ? t.accent : past ? t.soft : t.ink;
   return (
     <Pressable
-      style={[s.cell, past ? { opacity: 0.55 } : null, selected ? { borderBottomColor: t.ink } : null]}
+      style={s.cell}
       onPress={onPress}
       accessibilityRole="button"
       accessibilityState={{ selected }}
       accessibilityLabel={`יום ${tr.days[d.getDay()]}, ${d.getDate()}`}
     >
-      <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: t.accent, opacity: 0.22 }, hlBg]} />
-      <Text style={[s.cellL, { color: t.mute }]}>{tr.dayLetters[d.getDay()]}</Text>
-      <Text style={[s.cellN, { color: t.ink, fontFamily: date === today ? font.black : font.serif }]}>{d.getDate()}</Text>
-      <View style={[s.cellBar, { backgroundColor: stats.total ? t.line : 'transparent' }]}>
-        <View style={[s.cellFill, { width: `${stats.pct * 100}%`, backgroundColor: t.accent }]} />
+      <View style={[s.cellCircle, selected ? { backgroundColor: t.ink } : null]}>
+        <Animated.View style={[StyleSheet.absoluteFill, s.cellHl, { backgroundColor: t.accent }, hlBg]} />
+        <Text style={[s.cellN, { color: fg, fontFamily: selected || isToday ? font.bold : font.semibold }]}>{d.getDate()}</Text>
       </View>
+      <View style={[s.cellDot, { backgroundColor: stats.closed ? t.accent : stats.total && !selected ? t.line : 'transparent' }]} />
     </Pressable>
   );
 }
@@ -470,6 +477,28 @@ export default function TodayScreen() {
   }, []);
   const openRows = useMemo(() => orderOpen(rows.filter((x) => !x.doneAt), view, today, clock, series).ordered, [rows, view, today, clock, series]);
   const doneRows = useMemo(() => rows.filter((x) => x.doneAt), [rows]);
+  const [showDone, setShowDone] = useState(doneShown);
+  const nextId = useMemo(() => {
+    if (view !== today) return null;
+    const d = new Date(clock);
+    const nowMin = d.getHours() * 60 + d.getMinutes();
+    const mins = (x: Task) => Number(x.time!.slice(0, 2)) * 60 + Number(x.time!.slice(3, 5));
+    const timed = openRows.filter((x) => x.time && mins(x) + 30 > nowMin).sort((a, b) => mins(a) - mins(b));
+    return timed[0]?.id ?? null;
+  }, [openRows, view, today, clock]);
+  const turnWeek = useCallback((n: number) => setView(addDays(view, n)), [view]);
+  // Sideways on the week strip turns the week.
+  const weekPan = usePanGesture({
+    activeOffsetX: [-24, 24],
+    failOffsetY: [-14, 14],
+    onDeactivate: (e) => {
+      'worklet';
+      if (Math.abs(e.translationX) < 50) return;
+      // Content runs right to left in Hebrew, so a swipe to the right shows the next week.
+      const forward = RTL ? e.translationX > 0 : e.translationX < 0;
+      scheduleOnRN(turnWeek, forward ? 7 : -7);
+    },
+  });
   idsRef.current = openRows.map((x) => x.id);
 
   const publish = useCallback(() => {
@@ -666,10 +695,8 @@ export default function TodayScreen() {
         alarm={nextAlarm && alarmAt(nextAlarm) - clock <= ALARM_WINDOW ? nextAlarm.time : null}
         onAlarm={() => router.push('/alarms')}
       />
-      <View style={[s.stripWrap, { borderColor: t.line }]}>
-        <Pressable onPress={() => setView(addDays(view, -7))} hitSlop={6} style={s.arrow} accessibilityRole="button" accessibilityLabel={tr.weekPrev}>
-          <Text style={[s.arrowT, { color: t.mute }]}>{RTL ? '›' : '‹'}</Text>
-        </Pressable>
+      <GestureDetector gesture={weekPan}>
+      <View style={s.stripWrap}>
         <View ref={stripRef} collapsable={false} style={s.strip}>
           {week.map((date, i) => (
             <DayCell
@@ -685,15 +712,15 @@ export default function TodayScreen() {
             />
           ))}
         </View>
-        <Pressable onPress={() => setView(addDays(view, 7))} hitSlop={6} style={s.arrow} accessibilityRole="button" accessibilityLabel={tr.weekNext}>
-          <Text style={[s.arrowT, { color: t.mute }]}>{RTL ? '‹' : '›'}</Text>
-        </Pressable>
+        {/* Hidden buttons keep turning the week reachable for screen readers. */}
+        <Pressable onPress={() => setView(addDays(view, -7))} style={s.srOnly} accessibilityRole="button" accessibilityLabel={tr.weekPrev} />
+        <Pressable onPress={() => setView(addDays(view, 7))} style={s.srOnly} accessibilityRole="button" accessibilityLabel={tr.weekNext} />
       </View>
+      </GestureDetector>
 
       <AnimatedScroll ref={scrollRef} onScroll={onScroll} scrollEventThrottle={16} style={s.flex} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: PEEK + 28 + (drawerOpen ? HALF : 0) }}>
         <Agenda date={view} />
-        <QuickAdd t={t} groups={data.groups} />
-        <View ref={listRef} collapsable={false} style={{ minHeight: doneRows.length ? 64 : 120 }}>
+        <View ref={listRef} collapsable={false} style={{ minHeight: 64 }}>
           {openRows.length ? (
             openRows.map((task, index) => (
               <Animated.View
@@ -715,6 +742,7 @@ export default function TodayScreen() {
                   onDrop={onDrop}
                   onToggle={onToggle}
                   late={isLateUrgent(task, clock)}
+                  next={task.id === nextId}
                 />
               </Animated.View>
             ))
@@ -722,8 +750,23 @@ export default function TodayScreen() {
             <Text style={[s.empty, { color: t.mute }]}>{tr.emptyDay}</Text>
           ) : null}
         </View>
-        {doneRows.length ? <Text style={[s.doneHead, { color: t.mute }]}>{tr.doneSection(doneRows.length)}</Text> : null}
-        {doneRows.map((task) => (
+        <QuickAdd t={t} groups={data.groups} />
+        {/* Finished tasks fold away under one line. */}
+        {doneRows.length ? (
+          <Pressable
+            onPress={() => {
+              doneShown = !showDone;
+              setShowDone(!showDone);
+            }}
+            hitSlop={8}
+            style={s.doneHead}
+            accessibilityRole="button"
+            accessibilityState={{ expanded: showDone }}
+          >
+            <Text style={[s.doneHeadT, { color: t.soft }]}>{tr.doneSection(doneRows.length)}</Text>
+          </Pressable>
+        ) : null}
+        {(showDone ? doneRows : []).map((task) => (
           <Animated.View key={task.id} layout={LinearTransition.duration(260)}>
             <DoneRow
               task={task}
@@ -739,8 +782,7 @@ export default function TodayScreen() {
         <GestureDetector gesture={headGesture}>
           <View style={s.dhead} accessible accessibilityRole="button" accessibilityLabel={tr.pool} accessibilityState={{ expanded: drawerOpen }}>
             <View style={s.dheadRow}>
-              <Text style={[s.dtitle, { color: t.ink }]}>{tr.pool}</Text>
-              <Text style={[s.dcount, { color: t.mute }]}>{pool.length}</Text>
+              <Text style={[s.dtitle, { color: t.mute }]}>{`${tr.pool} · ${pool.length}`}</Text>
             </View>
             {/* A small chevron at the top centre says the drawer pulls up; it turns down once open. */}
             <View pointerEvents="none" style={s.grabWrap}>
@@ -799,18 +841,17 @@ export default function TodayScreen() {
 const s = StyleSheet.create({
   root: { flex: 1, overflow: 'hidden' },
   flex: { flex: 1 },
-  stripWrap: { flexDirection: 'row', alignItems: 'stretch', borderTopWidth: 1, borderBottomWidth: 1 },
+  stripWrap: { flexDirection: 'row', alignItems: 'stretch', paddingHorizontal: 12, paddingTop: 4, paddingBottom: 6 },
   strip: { flex: 1, flexDirection: 'row' },
-  arrow: { width: 22, alignItems: 'center', justifyContent: 'center' },
-  arrowT: { fontFamily: font.regular, fontSize: 22 },
-  cell: { flex: 1, alignItems: 'center', paddingTop: 3, paddingBottom: 4, borderBottomWidth: 2, borderBottomColor: 'transparent' },
-  cellL: { fontFamily: font.regular, fontSize: 11 },
-  cellN: { fontSize: 16, lineHeight: 19, fontVariant: ['lining-nums'] },
-  cellBar: { width: '62%', height: 3, marginTop: 2, borderRadius: 2, overflow: 'hidden' },
-  cellFill: { height: '100%' },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, minHeight: 48 },
-  rowMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6, minHeight: 48 },
-  quickBox: { marginHorizontal: 14, marginTop: 6, marginBottom: 2, borderRadius: 10, paddingHorizontal: 12 },
+  srOnly: { position: 'absolute', width: 1, height: 1, opacity: 0 },
+  cell: { flex: 1, alignItems: 'center', paddingVertical: 2 },
+  cellCircle: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  cellHl: { opacity: 0.25, borderRadius: 18 },
+  cellN: { fontSize: 15.5, lineHeight: 19, fontVariant: ['tabular-nums', 'lining-nums'] },
+  cellDot: { width: 4, height: 4, borderRadius: 2, marginTop: 3 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20, minHeight: 52 },
+  rowMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8, minHeight: 52 },
+  quickBox: { marginHorizontal: 8, marginTop: 2, marginBottom: 2, borderRadius: 10, paddingHorizontal: 12 },
   quick: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   quickGo: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   quickGoT: { fontFamily: font.bold, fontSize: 14, lineHeight: 18 },
@@ -824,23 +865,23 @@ const s = StyleSheet.create({
   quickPt: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
   quickPtT: { fontFamily: font.semibold, fontSize: 12.5, fontVariant: ['lining-nums'] },
   quickTopic: { alignItems: 'flex-start' },
-  quickPlus: { fontFamily: font.semibold, fontSize: 20, lineHeight: 24 },
-  quickIn: { flex: 1, fontFamily: font.regular, fontSize: 14.5, paddingVertical: 6 },
-  doneHead: { fontFamily: font.semibold, fontSize: 12.5, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 },
+  quickPlus: { fontFamily: font.regular, fontSize: 22, lineHeight: 26, width: 22, textAlign: 'center' },
+  quickIn: { flex: 1, fontFamily: font.medium, fontSize: 15, paddingVertical: 12 },
+  doneHead: { alignSelf: 'flex-start', paddingHorizontal: 20, paddingTop: 8, paddingBottom: 6 },
+  doneHeadT: { fontFamily: font.medium, fontSize: 13.5, fontVariant: ['lining-nums'] },
   under: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20 },
   underT: { fontFamily: font.bold, fontSize: 15 },
-  check: { width: 24, height: 24, borderRadius: 12, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
+  check: { width: 22, height: 22, borderRadius: 11, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
   tick: { fontFamily: font.bold, fontSize: 13, lineHeight: 17 },
-  body: { flex: 1, minWidth: 0 },
-  title: { fontFamily: font.semibold, fontSize: 15.5, lineHeight: 20 },
-  meta: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 1 },
-  metaT: { flexShrink: 1, fontFamily: font.regular, fontSize: 12.5, fontVariant: ['tabular-nums', 'lining-nums'] },
+  body: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 7 },
+  title: { flexShrink: 1, fontSize: 16.5, lineHeight: 22 },
+  nextDot: { width: 6, height: 6, borderRadius: 3 },
+  time: { fontSize: 13.5, minWidth: 40, textAlign: 'left', fontVariant: ['tabular-nums', 'lining-nums'] },
   empty: { fontFamily: font.regular, fontSize: 15.5, textAlign: 'center', paddingHorizontal: 28, paddingVertical: 32 },
   drawer: { position: 'absolute', start: 0, end: 0, bottom: 0, borderTopStartRadius: 16, borderTopEndRadius: 16, borderTopWidth: 1, elevation: 10, shadowOpacity: 0.09, shadowRadius: 14, shadowOffset: { width: 0, height: -5 } },
   dhead: { height: 58, paddingHorizontal: 18, paddingTop: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
   dheadRow: { flexDirection: 'row', alignItems: 'baseline', gap: 7 },
-  dtitle: { fontFamily: font.serif, fontSize: 19 },
-  dcount: { fontFamily: font.regular, fontSize: 14.5, fontVariant: ['lining-nums'] },
+  dtitle: { fontFamily: font.semibold, fontSize: 14.5 },
   grabWrap: { position: 'absolute', top: 5, left: 0, right: 0, height: 12, alignItems: 'center', justifyContent: 'center' },
   grab: { width: 9, height: 9, borderTopWidth: 2, borderLeftWidth: 2, borderRadius: 1 },
   drop: { alignItems: 'center', justifyContent: 'center', borderTopStartRadius: 16, borderTopEndRadius: 16 },
@@ -849,7 +890,7 @@ const s = StyleSheet.create({
   chips: { gap: 6, paddingHorizontal: 18, alignItems: 'flex-start' },
   ghead: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 18, paddingTop: 12, paddingBottom: 4 },
   gheadT: { fontFamily: font.serif, fontSize: 15 },
-  poolRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 18, paddingVertical: 7, minHeight: 46, borderBottomWidth: 1 },
+  poolRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20, paddingVertical: 8, minHeight: 48 },
   ghost: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 18, paddingVertical: 10, borderRadius: 10, borderWidth: 1.5, elevation: 14, shadowOpacity: 0.25, shadowRadius: 16, shadowOffset: { width: 0, height: 8 } },
   fly: { position: 'absolute', fontFamily: font.black, fontSize: 26, fontVariant: ['lining-nums'] },
 });
