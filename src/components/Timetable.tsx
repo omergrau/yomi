@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { KeyboardAvoidingView, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { weekday } from '../domain/dates';
-import type { Points, Recurring } from '../domain/types';
+import type { Recurring } from '../domain/types';
 import { t as tr } from '../i18n';
 import { ensureReminderPermission } from '../notifications';
 import { hasNativePickers, pickTime } from '../pickers';
@@ -145,22 +145,6 @@ function SlotSheet({ slot, day, onClose }: { slot: Recurring | null; day: number
               </View>
             </View>
 
-            <View style={s.worth}>
-              <Text style={[s.label, { color: t.mute, marginBottom: 0 }]}>{tr.worth}</Text>
-              {[1, 2, 3, 4, 5].map((n) => (
-                <Pressable
-                  key={n}
-                  onPress={() => up({ points: n as Points })}
-                  accessibilityRole="radio"
-                  accessibilityState={{ selected: f.points === n }}
-                  accessibilityLabel={tr.ptsLabel(n)}
-                  style={[s.point, { backgroundColor: n <= f.points ? t.accent : t.wash }]}
-                >
-                  <Text style={[s.pointT, { color: n <= f.points ? t.onAccent : t.mute }]}>{n}</Text>
-                </Pressable>
-              ))}
-            </View>
-
             {error ? <Text style={[s.err, { color: t.ink }]}>{error}</Text> : null}
 
             {slot ? (
@@ -236,9 +220,6 @@ const s = StyleSheet.create({
   place: { borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, fontFamily: font.regular, fontSize: 15.5 },
   label: { fontFamily: font.regular, fontSize: 13.5, marginBottom: 6 },
   wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  worth: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  point: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
-  pointT: { fontFamily: font.semibold, fontSize: 14, fontVariant: ['lining-nums'] },
   err: { fontFamily: font.semibold, fontSize: 14 },
   quiet: { fontFamily: font.medium, fontSize: 14 },
 });

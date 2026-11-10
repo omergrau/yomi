@@ -145,6 +145,7 @@ function SheetBody() {
               </Pressable>
             </View>
 
+            {!f.time ? (
             <View style={s.inline}>
               <Label text={tr.worth} t={t} />
               <View style={s.points}>
@@ -162,6 +163,7 @@ function SheetBody() {
                 ))}
               </View>
             </View>
+            ) : null}
 
             {!f.repeat || series ? (
               <View>

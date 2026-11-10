@@ -426,3 +426,26 @@ describe('alarm clocks', () => {
     expect(L.readBackup(JSON.stringify(withAlarm)).data.alarms[0].setAt).toBeNull();
   });
 });
+
+describe('the schedule earns no points', () => {
+  const LATER = new Date(2026, 10, 12, 9).getTime();
+  it('leaves a timed task out of the day and the total from the change on', () => {
+    let d = base();
+    let r = add(d, 'פגישה', { time: '10:00', date: '2026-11-12' });
+    d = r.d;
+    const meet = r.id;
+    r = add(d, 'כביסה', { date: '2026-11-12', points: 2 });
+    d = r.d;
+    expect(L.dayStats(d, '2026-11-12')).toMatchObject({ total: 2, done: 0 });
+    d = apply(d, L.setDone(d, meet, true, '2026-11-12', LATER));
+    expect(L.dayStats(d, '2026-11-12')).toMatchObject({ total: 2, done: 0 });
+    expect(L.totalPoints(d)).toBe(0);
+  });
+  it('keeps points a timed task earned before the change', () => {
+    let d = base();
+    const r = add(d, 'שיעור', { time: '08:00' });
+    d = apply(r.d, L.setDone(r.d, r.id, true, TODAY, NOW));
+    expect(L.totalPoints(d)).toBe(3);
+    expect(L.dayStats(d, TODAY).done).toBe(3);
+  });
+});

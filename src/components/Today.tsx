@@ -28,7 +28,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import { addDays, parseIso, weekDays } from '../domain/dates';
-import { ALARM_WINDOW, alarmAt, dayStats, dayTasks, isLateUrgent, levelInfo, poolTasks, streak as streakOf, totalPoints, upcomingAlarms } from '../domain/logic';
+import { ALARM_WINDOW, alarmAt, dayStats, dayTasks, isLateUrgent, levelInfo, poolTasks, streak as streakOf, totalPoints, upcomingAlarms, worth } from '../domain/logic';
 import type { Group, Points, Recurring, Task } from '../domain/types';
 import { t as tr } from '../i18n';
 import { buzzLift, dropOnDay, moveToTomorrow, openSheet, quickAdd, removeFromDay, setView, toggleDone, useApp } from '../store';
@@ -640,8 +640,9 @@ export default function TodayScreen() {
   });
 
   const onToggle = useCallback((task: Task, px: number, py: number) => {
-    if (!task.doneAt) {
-      const points = task.points;
+    // Only a task that earns points sends them flying to the score.
+    if (!task.doneAt && worth(task)) {
+      const points = worth(task);
       (rootRef.current as any)?.measureInWindow((rx: number, ry: number) => {
         scoreRef.current?.measureInWindow((sx: number, sy: number, sw: number) => {
           setFlies((f) => [...f, { id: Date.now(), x: px - rx, y: py - ry, tx: sx - rx + sw / 2, ty: sy - ry + 30, points }]);

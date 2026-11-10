@@ -70,7 +70,7 @@ const he = {
     { v: null, l: 'בלי' }, { v: 30, l: '30 דק׳' }, { v: 60, l: 'שעה' }, { v: 90, l: 'שעה וחצי' }, { v: 120, l: 'שעתיים' }, { v: 180, l: '3 שעות' },
   ] as { v: number | null; l: string }[],
   otherEnd: 'שעת סיום אחרת',
-  autoDone: (titles: string[], pts: number) => (titles.length === 1 ? `"${titles[0]}" הסתיימה וסומנה כבוצעה. +${pts}` : `${titles.length} פעילויות הסתיימו וסומנו כבוצעו. +${pts}`),
+  autoDone: (titles: string[], pts: number) => `${titles.length === 1 ? `"${titles[0]}" הסתיימה וסומנה כבוצעה.` : `${titles.length} פעילויות הסתיימו וסומנו כבוצעו.`}${pts ? ` +${pts}` : ''}`,
   minutesLeft: (n: number) => (n >= 60 ? `נשארו ${Math.floor(n / 60)}:${String(n % 60).padStart(2, '0')} שעות` : `נשארו ${n} דקות`),
   agendaFirst: 'ראשון ביום',
   agendaAll: 'כל הלו״ז',

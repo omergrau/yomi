@@ -4,12 +4,11 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { AppState, Pressable, StyleSheet, Text, View } from 'react-native';
 import { calendarAccess, eventsFor, type CalendarAccess, type PhoneEvent } from '../calendar';
 import { buildAgenda, nextUp, type AgendaItem } from '../domain/agenda';
-import { dayTasks, isLateUrgent } from '../domain/logic';
+import { dayTasks } from '../domain/logic';
 import type { Task } from '../domain/types';
 import { t as tr } from '../i18n';
 import { openSheet, useApp } from '../store';
 import { font, groupColor, useTheme, type Theme } from '../theme';
-import { Pips } from './ui';
 
 export const hm = (ms: number) => {
   const d = new Date(ms);
@@ -46,7 +45,6 @@ function Row({ item, task, now, isToday, next, onToggle, t }: { item: AgendaItem
   const end = item.end ?? (item.start !== null ? item.start + 30 * 60000 : null);
   const past = isToday && end !== null && end <= now;
   const done = item.done;
-  const late = task ? isLateUrgent(task, now) : false;
   const when = item.allDay ? tr.allDay : item.start !== null ? hm(item.start) : '';
   return (
     <View style={[s.row, { opacity: done ? 0.5 : past ? 0.6 : 1 }]}>
@@ -57,7 +55,7 @@ function Row({ item, task, now, isToday, next, onToggle, t }: { item: AgendaItem
           accessibilityRole="checkbox"
           accessibilityState={{ checked: done }}
           accessibilityLabel={tr.markDone(task.title)}
-          style={[s.check, { borderColor: done ? t.accent : late ? t.alert : t.soft, backgroundColor: done ? t.accent : 'transparent' }]}
+          style={[s.check, { borderColor: done ? t.accent : t.soft, backgroundColor: done ? t.accent : 'transparent' }]}
         >
           {done ? <Text style={[s.tick, { color: t.onAccent }]}>✓</Text> : null}
         </Pressable>
@@ -78,7 +76,7 @@ function Row({ item, task, now, isToday, next, onToggle, t }: { item: AgendaItem
         <View style={[s.bar, { backgroundColor: barColor(item, t) }]} />
         <View style={s.info}>
           <Text
-            style={[s.title, { color: late ? t.alert : t.ink, fontFamily: late ? font.bold : font.medium, textDecorationLine: done ? 'line-through' : 'none' }]}
+            style={[s.title, { color: t.ink, fontFamily: font.medium, textDecorationLine: done ? 'line-through' : 'none' }]}
             numberOfLines={2}
           >
             {item.title || tr.agendaUntitled}
@@ -86,7 +84,6 @@ function Row({ item, task, now, isToday, next, onToggle, t }: { item: AgendaItem
           </Text>
           {item.place ? <Text style={[s.sub, { color: t.mute }]} numberOfLines={1}>{item.place}</Text> : null}
         </View>
-        {task ? <Pips points={task.points} muted={done} hot={late || task.points === 5} /> : null}
       </Pressable>
     </View>
   );

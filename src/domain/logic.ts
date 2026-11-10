@@ -4,6 +4,11 @@ import { timeWindow } from './order';
 import type { Alarm, AppData, Note, Backup, Change, Checklist, DayLog, EventType, Group, Points, Recurring, Task, TaskEvent } from './types';
 
 export const STREAK_GOAL = 0.7;
+/** From this day a task with a time is part of the schedule, an appointment rather than a job, and earns no points. */
+export const SCHEDULE_UNSCORED_FROM = new Date(2026, 10, 11).getTime();
+
+/** The points a task counts for. Points already earned on a timed task before the change stay earned. */
+export const worth = (t: Task) => (t.time && !(t.doneAt && t.doneAt < SCHEDULE_UNSCORED_FROM) ? 0 : t.points);
 export const POINTS_PER_LEVEL = 250;
 export const HORIZON_DAYS = 28;
 
@@ -25,10 +30,10 @@ export type DayStats = { total: number; done: number; pct: number; count: number
 
 export function dayStats(d: AppData, date: string): DayStats {
   const ts = dayTasks(d, date);
-  const done = ts.filter((t) => t.doneAt).reduce((a, t) => a + t.points, 0);
+  const done = ts.filter((t) => t.doneAt).reduce((a, t) => a + worth(t), 0);
   // A finished day also counts what was planned but moved away afterwards.
   const logged = d.dayLogs[date];
-  const total = Math.max(ts.reduce((a, t) => a + t.points, 0), logged?.planned ?? 0);
+  const total = Math.max(ts.reduce((a, t) => a + worth(t), 0), logged?.planned ?? 0);
   const pct = total ? done / total : 0;
   return {
     total, done, pct,
@@ -53,7 +58,7 @@ export function streak(d: AppData, today: string): number {
   return n + (dayStats(d, today).streakKept ? 1 : 0);
 }
 
-export const totalPoints = (d: AppData) => alive(d).filter((t) => t.doneAt).reduce((a, t) => a + t.points, 0);
+export const totalPoints = (d: AppData) => alive(d).filter((t) => t.doneAt).reduce((a, t) => a + worth(t), 0);
 
 export function levelInfo(total: number) {
   const into = total % POINTS_PER_LEVEL;
@@ -66,7 +71,7 @@ export const weekSeries = (d: AppData, date: string) => weekDays(date).map((day)
 
 export function groupWeekPoints(d: AppData, groupId: string, date: string) {
   const days = new Set(weekDays(date));
-  return alive(d).filter((t) => t.groupId === groupId && t.doneAt && t.date && days.has(t.date)).reduce((a, t) => a + t.points, 0);
+  return alive(d).filter((t) => t.groupId === groupId && t.doneAt && t.date && days.has(t.date)).reduce((a, t) => a + worth(t), 0);
 }
 
 export const historyLabelOrder = (e: TaskEvent[]) => [...e].sort((a, b) => b.at - a.at);
@@ -157,7 +162,7 @@ export function setDone(d: AppData, id: string, done: boolean, today: string, no
   const log = d.dayLogs[date];
   if (log) {
     const next: AppData = { ...d, tasks: { ...d.tasks, [id]: updated } };
-    const doneNow = dayTasks(next, date).filter((x) => x.doneAt).reduce((a, x) => a + x.points, 0);
+    const doneNow = dayTasks(next, date).filter((x) => x.doneAt).reduce((a, x) => a + worth(x), 0);
     change.dayLogs = [{ ...log, done: doneNow, planned: Math.max(log.planned, doneNow) }];
   }
   return change;
@@ -178,7 +183,7 @@ export function autoComplete(d: AppData, now: number): { change: Change; titles:
     cur = applyChange(cur, c);
     change = merge(change, c);
     titles.push(t.title);
-    points += t.points;
+    points += worth(cur.tasks[t.id]);
   }
   return { change, titles, points };
 }
