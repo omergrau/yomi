@@ -8,7 +8,7 @@ import type { Repo } from './data/repoTypes';
 import { addDays, toIso } from './domain/dates';
 import * as L from './domain/logic';
 import { endLabel } from './domain/order';
-import type { Alarm, AppData, Change, Checklist, Points, Recurring, Task, TaskEvent } from './domain/types';
+import type { Alarm, AppData, Change, Checklist, Note, Points, Recurring, Task, TaskEvent } from './domain/types';
 import { fmtDay, t as tr } from './i18n';
 import { syncReminders } from './notifications';
 
@@ -126,8 +126,13 @@ function commitUndoable(change: Change): () => void {
       ...(change.removeAlarms ?? []).map((id) => before.alarms.find((x) => x.id === id)).filter(Boolean),
     ].map((a) => ({ ...a!, setAt: null })) as Alarm[];
     const removeAlarms = (change.alarms ?? []).filter((a) => !before.alarms.some((x) => x.id === a.id)).map((a) => a.id);
+    const notes = [
+      ...(change.notes ?? []).map((n) => before.notes.find((x) => x.id === n.id)).filter(Boolean),
+      ...(change.removeNotes ?? []).map((id) => before.notes.find((x) => x.id === id)).filter(Boolean),
+    ] as Note[];
+    const removeNotes = (change.notes ?? []).filter((n) => !before.notes.some((x) => x.id === n.id)).map((n) => n.id);
     repo.removeEvents((change.events ?? []).map((e) => e.id));
-    commit({ tasks, recurring: [...recurring, ...added], dayLogs, lists, removeLists, alarms, removeAlarms });
+    commit({ tasks, recurring: [...recurring, ...added], dayLogs, lists, removeLists, alarms, removeAlarms, notes, removeNotes });
     hideToast();
   };
 }
@@ -311,6 +316,26 @@ export function removeAlarm(id: string) {
   commit({ removeAlarms: [id] });
   showToast(tr.alarmRemoved, () => {
     commit({ alarms: [{ ...alarm, setAt: null }] });
+    hideToast();
+  });
+}
+
+export function addNote(text: string) {
+  if (!text.trim()) return;
+  commit({ notes: [L.createNote(text, Date.now())] });
+}
+export function editNote(id: string, text: string) {
+  const note = S.data.notes.find((n) => n.id === id);
+  if (!note) return;
+  if (!text.trim()) return removeNote(id);
+  commit({ notes: [{ ...note, text: text.trim().slice(0, L.NOTE_MAX) }] });
+}
+export function removeNote(id: string) {
+  const note = S.data.notes.find((n) => n.id === id);
+  if (!note) return;
+  commit({ removeNotes: [id] });
+  showToast(tr.memoryRemoved, () => {
+    commit({ notes: [note] });
     hideToast();
   });
 }

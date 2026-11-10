@@ -61,6 +61,9 @@ export type Checklist = { id: string; title: string; sort: number; createdAt: nu
  */
 export type Alarm = { id: string; date: string; time: string; label: string | null; createdAt: number; setAt: number | null };
 
+/** Something the assistant should know about the person, kept across conversations and updates. */
+export type Note = { id: string; text: string; createdAt: number };
+
 export type Meta = { lastDay: string | null; theme: 'system' | 'light' | 'dark'; hiddenCalendars: string[] };
 
 export type AppData = {
@@ -70,6 +73,7 @@ export type AppData = {
   dayLogs: Record<string, DayLog>;
   lists: Checklist[];
   alarms: Alarm[];
+  notes: Note[];
   meta: Meta;
 };
 
@@ -82,6 +86,8 @@ export type Change = {
   removeLists?: string[];
   alarms?: Alarm[];
   removeAlarms?: string[];
+  notes?: Note[];
+  removeNotes?: string[];
   recurring?: Recurring[];
   dayLogs?: DayLog[];
   events?: TaskEvent[];

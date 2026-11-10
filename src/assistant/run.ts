@@ -74,6 +74,23 @@ const TOOLS: Anthropic.Beta.BetaTool[] = [
     input_schema: { type: 'object', additionalProperties: false, required: ['task_id'], properties: { task_id: { type: 'string' } } },
   },
   {
+    name: 'remember',
+    description: 'Save one lasting fact about the person to your memory, so future conversations know it: a preference, a routine, a constraint, how they like to plan. One short sentence in Hebrew. To change a note you already have, pass its id in replaces instead of adding a second one.',
+    input_schema: {
+      type: 'object', additionalProperties: false,
+      required: ['text'],
+      properties: {
+        text: { type: 'string', description: 'One short sentence, up to 200 characters' },
+        replaces: optional('string', 'The id of an existing note this one updates'),
+      },
+    },
+  },
+  {
+    name: 'forget',
+    description: 'Remove a note from your memory, when the person asks or when it is no longer true.',
+    input_schema: { type: 'object', additionalProperties: false, required: ['note_id'], properties: { note_id: { type: 'string' } } },
+  },
+  {
     name: 'get_alarms',
     description: 'Read the upcoming alarm clocks with their ids.',
     input_schema: { type: 'object', additionalProperties: false, properties: {} },
@@ -170,6 +187,7 @@ How the app works:
 - Topics (נושאים) group tasks, for example תואר, עבודה, ספורט.
 - When a weekly item (lecture, training) is cancelled for one day, use cancel_weekly_once on that day's occurrence. Never delete or change the weekly item itself for a one-time change.
 - Alarm clocks (שעון מעורר) ring in the phone clock app. Set them with set_alarm; when the person asks to wake up "in time for" something, look at the schedule and allow time to get ready (ask how long if it matters and is unknown).
+- You have a memory of the person (shown below). Use it without mentioning it each time. When you learn something lasting and useful for planning (a routine, a preference, how long things take them, what matters most), save it with remember and say so in a few words. Also save whatever they ask you to remember. Do not save one-off tasks or events, which belong in the schedule, and do not save sensitive details such as health, money or passwords unless they ask.
 - Checklists (רשימות) are plain lists with items to tick, such as a shopping list. They have no dates or points. Read them with get_lists before changing one, and match a list by its title.
 - The week starts on Sunday. The person is in Israel.
 
@@ -211,6 +229,13 @@ function contextLine() {
   return `[עכשיו: יום ${days[now.getDay()]} ${toIso(now)} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}]`;
 }
 
+/** What the assistant remembers about the person, read fresh for every request so a new note counts at once. */
+function memoryBlock() {
+  const notes = getApp().data.notes;
+  if (!notes.length) return 'Your memory of the person is empty so far.';
+  return `Your memory of the person (note_id: text):\n${notes.map((n) => `- ${n.id}: ${n.text}`).join('\n')}`;
+}
+
 export class AssistantFailure extends Error {
   constructor(public kind: AssistantError, public detail = '') {
     super(kind);
@@ -230,7 +255,7 @@ export async function ask(text: string): Promise<AssistantTurn> {
       const response = await client.beta.messages.create({
         model: MODEL,
         max_tokens: 16000,
-        system: SYSTEM,
+        system: `${SYSTEM}\n\n${memoryBlock()}`,
         tools: TOOLS,
         messages: history,
       });

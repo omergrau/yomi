@@ -270,6 +270,23 @@ export function deleteAlarm(ctx: Ctx, input: { alarm_id: string }): ActionResult
   return { change: { removeAlarms: [alarm!.id] }, result: { deleted: alarm!.id }, summary: `הוסר שעון מעורר: ${alarm!.time}` };
 }
 
+/** Saves a lasting fact about the person, so later conversations start out knowing it. */
+export function remember(ctx: Ctx, input: { text: string; replaces: string | null }): ActionResult {
+  const text = input.text?.trim() ?? '';
+  need(!!text, 'text is required');
+  const old = input.replaces ? ctx.data.notes.find((n) => n.id === input.replaces) : undefined;
+  need(!input.replaces || !!old, 'no such note to replace');
+  need(!!old || ctx.data.notes.length < L.NOTES_MAX, `memory is full (${L.NOTES_MAX}); forget or replace a note first`);
+  const note = old ? { ...old, text: text.slice(0, L.NOTE_MAX) } : L.createNote(text, ctx.now);
+  return { change: { notes: [note] }, result: { saved: { note_id: note.id, text: note.text } }, summary: `נשמר בזיכרון: ${note.text}` };
+}
+
+export function forget(ctx: Ctx, input: { note_id: string }): ActionResult {
+  const note = ctx.data.notes.find((n) => n.id === input.note_id);
+  need(!!note, 'no such note');
+  return { change: { removeNotes: [note!.id] }, result: { forgotten: note!.id }, summary: `נמחק מהזיכרון: ${note!.text}` };
+}
+
 export const ACTIONS = {
   get_schedule: getSchedule,
   add_task: addTask,
@@ -286,6 +303,8 @@ export const ACTIONS = {
   get_alarms: getAlarms,
   set_alarm: setAlarm,
   delete_alarm: deleteAlarm,
+  remember,
+  forget,
 } as const;
 
 export type ActionName = keyof typeof ACTIONS;
@@ -298,6 +317,7 @@ const OPTIONAL: Partial<Record<ActionName, Record<string, unknown>>> = {
   find_free_time: { earliest: null, latest: null },
   create_list: { items: [] },
   set_alarm: { label: null },
+  remember: { replaces: null },
   update_list: { title: null, add: [], check: [], uncheck: [], remove: [], clear_checked: false },
 };
 

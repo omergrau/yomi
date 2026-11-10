@@ -145,6 +145,7 @@ export default function SettingsScreen() {
         {hasKey ? (
           <>
             <Text style={[s.line, { color: t.ink }]}>{tr.aiKeyOn}</Text>
+            <TextLink label={tr.memoryLink(data.notes.length)} onPress={() => router.push('/memory')} />
             <TextLink
               label={tr.aiRemoveKey}
               onPress={async () => {

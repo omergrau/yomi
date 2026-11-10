@@ -146,3 +146,23 @@ describe('alarm clocks', () => {
     expect(() => run(L.emptyData(), 'set_alarm', { date: TODAY, time: '7am' })).toThrow();
   });
 });
+
+describe('assistant memory', () => {
+  it('remembers, updates a note in place and forgets', () => {
+    let r = run(L.emptyData(), 'remember', { text: 'מתאמן בבקרים' });
+    expect(r.summary).toContain('נשמר בזיכרון');
+    const id = r.data.notes[0].id;
+    r = run(r.data, 'remember', { text: 'מתאמן בערבים', replaces: id });
+    expect(r.data.notes).toHaveLength(1);
+    expect(r.data.notes[0]).toMatchObject({ id, text: 'מתאמן בערבים' });
+    r = run(r.data, 'forget', { note_id: id });
+    expect(r.data.notes).toEqual([]);
+  });
+
+  it('refuses empty text, unknown ids and a full memory', () => {
+    expect(() => run(L.emptyData(), 'remember', { text: '  ' })).toThrow();
+    expect(() => run(L.emptyData(), 'forget', { note_id: 'nope' })).toThrow();
+    const full = { ...L.emptyData(), notes: Array.from({ length: L.NOTES_MAX }, (_, i) => ({ id: `n${i}`, text: 'x', createdAt: i })) };
+    expect(() => run(full, 'remember', { text: 'עוד אחד' })).toThrow();
+  });
+});

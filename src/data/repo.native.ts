@@ -1,5 +1,5 @@
 import { openDatabaseSync, type SQLiteDatabase } from 'expo-sqlite';
-import type { Alarm, AppData, Change, Checklist, DayLog, Group, Recurring, Task, TaskEvent } from '../domain/types';
+import type { Alarm, AppData, Change, Note, Checklist, DayLog, Group, Recurring, Task, TaskEvent } from '../domain/types';
 import type { Repo } from './repoTypes';
 
 // Each entry upgrades the database by one version. Never edit an entry after it has shipped; add a new one.
@@ -39,6 +39,9 @@ export const MIGRATIONS = [
   `
   CREATE TABLE alarms (id TEXT PRIMARY KEY NOT NULL, date TEXT NOT NULL, time TEXT NOT NULL, label TEXT, created_at INTEGER NOT NULL, set_at INTEGER);
   `,
+  `
+  CREATE TABLE notes (id TEXT PRIMARY KEY NOT NULL, text TEXT NOT NULL, created_at INTEGER NOT NULL);
+  `,
 ];
 
 function migrate(db: SQLiteDatabase) {
@@ -68,6 +71,7 @@ const putList = (db: SQLiteDatabase, l: Checklist) =>
   db.runSync('INSERT OR REPLACE INTO lists (id,title,sort,created_at,items) VALUES (?,?,?,?,?)', [l.id, l.title, l.sort, l.createdAt, JSON.stringify(l.items)]);
 const putAlarm = (db: SQLiteDatabase, a: Alarm) =>
   db.runSync('INSERT OR REPLACE INTO alarms (id,date,time,label,created_at,set_at) VALUES (?,?,?,?,?,?)', [a.id, a.date, a.time, a.label, a.createdAt, a.setAt]);
+const putNote = (db: SQLiteDatabase, n: Note) => db.runSync('INSERT OR REPLACE INTO notes (id,text,created_at) VALUES (?,?,?)', [n.id, n.text, n.createdAt]);
 const putEvent = (db: SQLiteDatabase, e: TaskEvent) =>
   db.runSync('INSERT OR REPLACE INTO events (id,task_id,type,from_date,to_date,at) VALUES (?,?,?,?,?,?)', [e.id, e.taskId, e.type, e.fromDate, e.toDate, e.at]);
 const putMeta = (db: SQLiteDatabase, m: Partial<AppData['meta']>) => {
@@ -107,10 +111,11 @@ export function openRepo(): Repo {
       const alarms = db.getAllSync<any>('SELECT * FROM alarms').map(
         (r): Alarm => ({ id: r.id, date: r.date, time: r.time, label: r.label, createdAt: r.created_at, setAt: r.set_at }),
       );
+      const notes = db.getAllSync<any>('SELECT * FROM notes ORDER BY created_at').map((r): Note => ({ id: r.id, text: r.text, createdAt: r.created_at }));
       const meta = Object.fromEntries(db.getAllSync<{ key: string; value: string | null }>('SELECT key,value FROM meta').map((m) => [m.key, m.value]));
       return {
         tasks: Object.fromEntries(tasks.map((t) => [t.id, t])),
-        groups, recurring, lists, alarms,
+        groups, recurring, lists, alarms, notes,
         dayLogs: Object.fromEntries(logs.map((l) => [l.date, l])),
         meta: {
           lastDay: meta.lastDay ?? null,
@@ -130,6 +135,8 @@ export function openRepo(): Repo {
         c.removeLists?.forEach((id) => db.runSync('DELETE FROM lists WHERE id = ?', [id]));
         c.alarms?.forEach((a) => putAlarm(db, a));
         c.removeAlarms?.forEach((id) => db.runSync('DELETE FROM alarms WHERE id = ?', [id]));
+        c.notes?.forEach((n) => putNote(db, n));
+        c.removeNotes?.forEach((id) => db.runSync('DELETE FROM notes WHERE id = ?', [id]));
         c.events?.forEach((e) => putEvent(db, e));
         if (c.meta) putMeta(db, c.meta);
       });
@@ -141,13 +148,14 @@ export function openRepo(): Repo {
     allEvents: () => db.getAllSync<EventRow>('SELECT * FROM events ORDER BY at').map(toEvent),
     replaceAll(d, events) {
       db.withTransactionSync(() => {
-        db.execSync('DELETE FROM tasks; DELETE FROM groups_; DELETE FROM recurring; DELETE FROM day_logs; DELETE FROM events; DELETE FROM meta; DELETE FROM lists; DELETE FROM alarms;');
+        db.execSync('DELETE FROM tasks; DELETE FROM groups_; DELETE FROM recurring; DELETE FROM day_logs; DELETE FROM events; DELETE FROM meta; DELETE FROM lists; DELETE FROM alarms; DELETE FROM notes;');
         Object.values(d.tasks).forEach((t) => putTask(db, t));
         d.groups.forEach((g) => putGroup(db, g));
         d.recurring.forEach((r) => putRecurring(db, r));
         Object.values(d.dayLogs).forEach((l) => putLog(db, l));
         d.lists.forEach((l) => putList(db, l));
         (d.alarms ?? []).forEach((a) => putAlarm(db, a));
+        (d.notes ?? []).forEach((n) => putNote(db, n));
         events.forEach((e) => putEvent(db, e));
         putMeta(db, d.meta);
       });

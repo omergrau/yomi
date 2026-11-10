@@ -1,7 +1,7 @@
 // Every product rule lives here as a pure function, so it can be tested without a device.
 import { addDays, fireTime, toIso, weekDays, weekday } from './dates';
 import { timeWindow } from './order';
-import type { Alarm, AppData, Backup, Change, Checklist, DayLog, EventType, Group, Points, Recurring, Task, TaskEvent } from './types';
+import type { Alarm, AppData, Note, Backup, Change, Checklist, DayLog, EventType, Group, Points, Recurring, Task, TaskEvent } from './types';
 
 export const STREAK_GOAL = 0.7;
 export const POINTS_PER_LEVEL = 250;
@@ -334,8 +334,14 @@ export function applyChange(d: AppData, c: Change): AppData {
     alarms = [...alarms.map((a) => up.get(a.id) ?? a), ...c.alarms.filter((a) => !alarms.some((x) => x.id === a.id))];
   }
   if (c.removeAlarms?.length) alarms = alarms.filter((a) => !c.removeAlarms!.includes(a.id));
+  let notes = d.notes;
+  if (c.notes?.length) {
+    const up = new Map(c.notes.map((n) => [n.id, n]));
+    notes = [...notes.map((n) => up.get(n.id) ?? n), ...c.notes.filter((n) => !notes.some((x) => x.id === n.id))].sort((a, b) => a.createdAt - b.createdAt);
+  }
+  if (c.removeNotes?.length) notes = notes.filter((n) => !c.removeNotes!.includes(n.id));
   const dayLogs = c.dayLogs?.length ? { ...d.dayLogs, ...Object.fromEntries(c.dayLogs.map((l) => [l.date, l])) } : d.dayLogs;
-  return { tasks, groups, recurring, dayLogs, lists, alarms, meta: c.meta ? { ...d.meta, ...c.meta } : d.meta };
+  return { tasks, groups, recurring, dayLogs, lists, alarms, notes, meta: c.meta ? { ...d.meta, ...c.meta } : d.meta };
 }
 
 export const merge = (a: Change, b: Change): Change => {
@@ -349,6 +355,8 @@ export const merge = (a: Change, b: Change): Change => {
     removeLists: [...(a.removeLists ?? []), ...(b.removeLists ?? [])],
     alarms: [...(a.alarms ?? []), ...(b.alarms ?? [])],
     removeAlarms: [...(a.removeAlarms ?? []), ...(b.removeAlarms ?? [])],
+    notes: [...(a.notes ?? []), ...(b.notes ?? [])],
+    removeNotes: [...(a.removeNotes ?? []), ...(b.removeNotes ?? [])],
     recurring: [...(a.recurring ?? []), ...(b.recurring ?? [])],
     dayLogs: [...(a.dayLogs ?? []), ...(b.dayLogs ?? [])],
     events: [...(a.events ?? []), ...(b.events ?? [])],
@@ -464,6 +472,11 @@ export function alarmJobs(d: AppData, now: number): ReminderJob[] {
   return jobs;
 }
 
+/** The assistant's memory stays short, so it fits every conversation. */
+export const NOTE_MAX = 200;
+export const NOTES_MAX = 60;
+export const createNote = (text: string, now: number): Note => ({ id: newId(now), text: text.trim().slice(0, NOTE_MAX), createdAt: now });
+
 export function makeBackup(d: AppData, events: TaskEvent[], now: number): Backup {
   return {
     app: 'yomi', version: 1, exportedAt: now,
@@ -491,10 +504,12 @@ export function readBackup(raw: string): { data: AppData; events: TaskEvent[] } 
       lists: Array.isArray(b.data.lists) ? b.data.lists : [],
       // Backups made before alarms existed have none. A restored alarm is handed to this phone's clock again.
       alarms: Array.isArray(b.data.alarms) ? b.data.alarms.map((a) => ({ ...a, setAt: null })) : [],
+      // Backups made before the assistant's memory existed have no notes.
+      notes: Array.isArray(b.data.notes) ? b.data.notes.filter((n) => typeof n?.id === 'string' && typeof n?.text === 'string') : [],
       meta: { lastDay: b.data.meta?.lastDay ?? null, theme: b.data.meta?.theme ?? 'system', hiddenCalendars: Array.isArray(b.data.meta?.hiddenCalendars) ? b.data.meta.hiddenCalendars : [] },
     },
     events: b.events,
   };
 }
 
-export const emptyData = (): AppData => ({ tasks: {}, groups: [], recurring: [], dayLogs: {}, lists: [], alarms: [], meta: { lastDay: null, theme: 'system', hiddenCalendars: [] } });
+export const emptyData = (): AppData => ({ tasks: {}, groups: [], recurring: [], dayLogs: {}, lists: [], alarms: [], notes: [], meta: { lastDay: null, theme: 'system', hiddenCalendars: [] } });

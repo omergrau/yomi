@@ -62,6 +62,7 @@ describe('phone database', () => {
     expect(d.meta.hiddenCalendars).toEqual([]);
     expect(d.lists).toEqual([]);
     expect(d.alarms).toEqual([]);
+    expect(d.notes).toEqual([]);
     expect(repo.eventsFor('t1')).toHaveLength(1);
     expect(L.totalPoints(d)).toBe(4);
   });
@@ -132,6 +133,16 @@ describe('phone database', () => {
     const repo = openRepo();
     repo.apply({ meta: { hiddenCalendars: ['a', 'b'] } });
     expect(repo.load().meta.hiddenCalendars).toEqual(['a', 'b']);
+  });
+
+  it('keeps the assistant memory', async () => {
+    const { openRepo } = await import('./repo.native');
+    const repo = openRepo();
+    const note = L.createNote('מעדיף להתאמן בבוקר', NOW);
+    repo.apply({ notes: [note] });
+    expect(repo.load().notes).toEqual([note]);
+    repo.apply({ removeNotes: [note.id] });
+    expect(repo.load().notes).toEqual([]);
   });
 
   it('keeps alarms', async () => {
