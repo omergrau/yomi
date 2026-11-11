@@ -6,6 +6,7 @@ import Animated, { useAnimatedKeyboard, useAnimatedStyle, useSharedValue } from 
 import { getApiKey } from '../../assistant/key';
 import { AssistantFailure, ask, conversationMark, resetConversation, rewindConversation } from '../../assistant/run';
 import { t as tr } from '../../i18n';
+import { RichText } from '../../components/RichText';
 import { showToast } from '../../store';
 import { font, useTheme } from '../../theme';
 
@@ -152,7 +153,12 @@ export default function AssistantScreen() {
             disabled={b.from !== 'me'}
             style={[s.bubble, b.from === 'me' ? [s.me, { backgroundColor: t.accent, opacity: editing?.id === b.id ? 0.55 : 1 }] : [s.bot, { backgroundColor: t.wash }]]}
           >
-            <Text style={[s.bubbleT, { color: b.from === 'me' ? t.onAccent : b.error ? t.mute : t.ink }]} selectable={b.from !== 'me'}>{b.text}</Text>
+            {/* Replies come with light formatting; my own messages stay as typed. */}
+            {b.from === 'bot' && !b.error ? (
+              <RichText text={b.text} t={t} color={t.ink} />
+            ) : (
+              <Text style={[s.bubbleT, { color: b.from === 'me' ? t.onAccent : t.mute }]} selectable={b.from !== 'me'}>{b.text}</Text>
+            )}
             {b.summaries?.length ? (
               <View style={[s.changes, { borderTopColor: t.line }]}>
                 {b.summaries.map((x, i) => (
