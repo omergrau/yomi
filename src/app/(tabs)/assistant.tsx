@@ -7,19 +7,32 @@ import { getApiKey } from '../../assistant/key';
 import { AssistantFailure, ask, conversationMark, resetConversation, rewindConversation } from '../../assistant/run';
 import { t as tr } from '../../i18n';
 import { RichText } from '../../components/RichText';
+import { demoConversation } from '../../data/demo';
 import { showToast } from '../../store';
 import { font, useTheme } from '../../theme';
 
 // `mark` is where the conversation stood before a message of mine, so it can be edited and asked again.
 type Bubble = { id: number; from: 'me' | 'bot'; text: string; mark?: number; summaries?: string[]; undo?: (() => void)[]; undone?: boolean; error?: boolean };
 
-let saved: Bubble[] = [];
 let nextId = 1;
+// In the browser prototype the chat opens with a sample talk; on the phone this list is always empty.
+let saved: Bubble[] = [];
+let seeded = false;
+const firstBubbles = (): Bubble[] => {
+  if (!seeded) {
+    seeded = true;
+    saved = demoConversation.flatMap((x) => [
+      { id: nextId++, from: 'me' as const, text: x.q },
+      { id: nextId++, from: 'bot' as const, text: x.a },
+    ]);
+  }
+  return saved;
+};
 
 export default function AssistantScreen() {
   const t = useTheme();
   const [hasKey, setHasKey] = useState<boolean | null>(null);
-  const [bubbles, setBubbles] = useState<Bubble[]>(saved);
+  const [bubbles, setBubbles] = useState<Bubble[]>(firstBubbles);
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState<Bubble | null>(null);
@@ -105,7 +118,7 @@ export default function AssistantScreen() {
     showToast(tr.aiUndone);
   };
 
-  if (hasKey === false) {
+  if (hasKey === false && !demoConversation.length) {
     return (
       <View style={[s.flex, s.center, { backgroundColor: t.paper }]}>
         <Text style={[s.h1, { color: t.ink }]}>{tr.aiTitle}</Text>

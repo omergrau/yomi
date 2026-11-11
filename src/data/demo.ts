@@ -1,9 +1,12 @@
 // A sample week for the browser prototype only, so the timetable and the day can be seen filled in.
 // The phone never loads this: it is used by repo.ts, the web stand-in, and only when the page asks for it.
 import { addDays, toIso, weekDays } from '../domain/dates';
-import { applyChange, createGroup, createRecurring, createTask, emptyData } from '../domain/logic';
+import { addItem, applyChange, createGroup, createList, createRecurring, createTask, emptyData, toggleItem } from '../domain/logic';
 import type { AppData, Change, Points } from '../domain/types';
 import { t as tr } from '../i18n';
+
+/** A sample talk with the assistant, built from the same week, so its formatting can be seen without a key. */
+export let demoConversation: { q: string; a: string }[] = [];
 
 export function demoData(): AppData {
   const today = toIso(new Date());
@@ -56,5 +59,36 @@ export function demoData(): AppData {
   for (const [date, title, points, groupId] of jobs) {
     put(createTask(d, { title, groupId, points, date, time: null, reminderMin: null }, now++));
   }
+
+  // A shopping list with two things already bought.
+  let list = createList(d, 'קניות לשבוע', now++);
+  for (const item of ['חלב', 'לחם', 'ביצים', 'עגבניות', 'פסטה', 'שמפו']) list = addItem(list, item, now++);
+  list = toggleItem(toggleItem(list, list.items[1].id), list.items[2].id);
+  put({ lists: [list] });
+
+  const at = week.indexOf(today);
+  const plan = [
+    ...slots.filter((x) => x.days.includes(at) && x.title !== 'שינה').map((x) => ({ time: x.time, end: x.end, title: x.title })),
+    ...timed.filter((x) => x[0] === at).map(([, title, time]) => ({ time, end: null as string | null, title })),
+  ].sort((a, b) => a.time.localeCompare(b.time));
+  const open = jobs.filter((x) => x[0] === today);
+  const planText = plan.length
+    ? plan.map((x) => `- **${x.end ? `${x.time}–${x.end}` : x.time}** ${x.title}`).join('\n')
+    : 'אין היום שום דבר בשעה קבועה.';
+  demoConversation = [
+    {
+      q: 'מה נשאר לי לעשות היום?',
+      a: `נשארו לך היום **${open.length} משימות**, ויש ${plan.length} דברים בלו״ז.\n\n## בלו״ז\n${planText}\n\n## משימות\n${open
+        .map(([, title, points]) => `- **${title}**${points >= 4 ? ' · דחוף' : ''}`)
+        .join('\n')}\n\nהייתי מתחיל מ**${open[0]?.[1] ?? ''}**, זו המשימה הכי דחופה.`,
+    },
+    {
+      q: 'מה עוד צריך לקנות?',
+      a: `ברשימה **${list.title}** נשארו ${list.items.filter((x) => !x.done).length} דברים:\n\n${list.items
+        .filter((x) => !x.done)
+        .map((x) => `- ${x.text}`)
+        .join('\n')}\n\nאת ה${list.items[1].text} וה${list.items[2].text} כבר סימנת.`,
+    },
+  ];
   return d;
 }

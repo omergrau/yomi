@@ -9,6 +9,7 @@ import { t as tr } from '../../i18n';
 import { getApiKey } from '../../assistant/key';
 import { openSheet } from '../../store';
 import { RTL, font, useTheme } from '../../theme';
+import { demoConversation } from '../../data/demo';
 
 const ROUTES = [
   { href: '/', label: tr.nav.today },
@@ -55,7 +56,7 @@ function AiTag() {
   const sparkle = useAnimatedStyle(() => ({ opacity: 0.55 + glow.value * 0.45, transform: [{ scale: 0.9 + glow.value * 0.2 }, { rotate: `${glow.value * 18}deg` }] }));
   return (
     <Pressable
-      onPress={async () => ((await getApiKey()) ? router.navigate('/assistant') : router.push('/settings'))}
+      onPress={async () => ((await getApiKey()) || demoConversation.length ? router.navigate('/assistant') : router.push('/settings'))}
       hitSlop={6}
       accessibilityRole="button"
       accessibilityLabel={tr.aiShortcutLabel}
