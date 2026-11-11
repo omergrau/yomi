@@ -19,19 +19,20 @@ const ROUTES = [
   { href: '/score', label: tr.nav.score },
   { href: '/assistant', label: tr.aiTab },
 ] as const;
-const ITEM_W = 84;
+// Names sit close together, and the open screen stands first, right beside the AI button.
+const ITEM_W = 62;
 const LAST = ROUTES.length - 1;
 // Physical direction of "next": to the left in Hebrew.
 const DIR = RTL ? -1 : 1;
 const SPRING = { damping: 20, stiffness: 220 };
 
-function WheelItem({ index, pos, on, onPress }: { index: number; pos: SharedValue<number>; on: boolean; onPress: () => void }) {
+function WheelItem({ index, pos, shift, on, onPress }: { index: number; pos: SharedValue<number>; shift: SharedValue<number>; on: boolean; onPress: () => void }) {
   const t = useTheme();
   const style = useAnimatedStyle(() => {
     const dist = Math.abs(index - pos.value);
     return {
-      opacity: Math.max(0, 1 - Math.min(dist, 2.6) * 0.36),
-      transform: [{ translateX: (index - pos.value) * ITEM_W * DIR }, { scale: 1 - Math.min(dist, 2) * 0.1 }],
+      opacity: index < pos.value - 0.5 ? 0 : Math.max(0, 1 - Math.min(dist, 4) * 0.2),
+      transform: [{ translateX: (index - pos.value) * ITEM_W * DIR - shift.value * DIR }, { scale: 1 - Math.min(dist, 2) * 0.05 }],
     };
   });
   return (
@@ -78,6 +79,8 @@ function Bar() {
   const pos = useSharedValue(current);
   const start = useSharedValue(current);
   const draggedAt = useRef(0);
+  // How far the open screen's name moves from the middle of the wheel to sit beside the AI button.
+  const shift = useSharedValue(0);
 
   useEffect(() => {
     pos.value = withSpring(current, SPRING);
@@ -118,12 +121,13 @@ function Bar() {
       {/* A shortcut to the assistant: the chat when a key is set, otherwise the place to add one. */}
       <AiTag />
       <GestureDetector gesture={pan}>
-        <View style={s.wheel} accessibilityRole="tablist">
+        <View style={s.wheel} accessibilityRole="tablist" onLayout={(e) => (shift.value = Math.max(0, (e.nativeEvent.layout.width - ITEM_W) / 2 - 2))}>
           {ROUTES.map((r, i) => (
             <WheelItem
               key={r.href}
               index={i}
               pos={pos}
+              shift={shift}
               on={i === current}
               onPress={() => {
                 // A swipe that ends on a name must not also count as a tap on it.
@@ -156,7 +160,7 @@ const s = StyleSheet.create({
   wheel: { flex: 1, height: '100%', overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
   item: { position: 'absolute', width: ITEM_W, height: '100%' },
   itemHit: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  label: { fontSize: 15 },
+  label: { fontSize: 14.5 },
   mid: { width: 62, alignItems: 'center' },
   ai: {
     flexDirection: 'row', alignItems: 'center', gap: 4, height: 30, paddingStart: 9, paddingEnd: 11, borderRadius: 15, marginEnd: 4,

@@ -90,6 +90,8 @@ const he = {
   agendaEmpty: 'אין כלום בלו״ז',
   agendaCount: (n: number) => (n === 1 ? 'פריט אחד' : `${n} פריטים`),
   agendaUntitled: 'בלי שם',
+  agendaPast: (n: number) => (n === 1 ? 'אחד כבר עבר' : `${n} כבר עברו`),
+  agendaPastHide: 'להסתיר את מה שעבר',
   agendaFromCalendar: 'יומן',
   agendaFromTimetable: 'מערכת',
   agendaFromTask: 'משימה',

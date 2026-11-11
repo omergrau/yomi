@@ -48,7 +48,7 @@ export const ScoreHeader = React.forwardRef<any, {
   const fg = stats.closed ? t.onAccent : t.ink;
   const fill = stats.closed ? t.onAccent : t.accent;
   const track = stats.closed ? 'rgba(255,255,255,0.28)' : t.wash;
-  const big = height < 720 ? 44 : 52;
+  const big = height < 720 ? 26 : 30;
 
   const message = !stats.total
     ? tr.barEmpty
@@ -73,6 +73,7 @@ export const ScoreHeader = React.forwardRef<any, {
         </View>
       </View>
       <View style={s.score}>
+        <View style={s.num}>
         <View ref={scoreRef} collapsable={false}>
           <Text
             style={[s.big, { color: fg, fontSize: big, lineHeight: big * 1.08 }]}
@@ -82,7 +83,7 @@ export const ScoreHeader = React.forwardRef<any, {
           </Text>
         </View>
         <Text style={[s.total, { color: fg }]}>{`/ ${stats.total}`}</Text>
-      </View>
+        </View>
       <View
         style={[s.bar, { backgroundColor: track }]}
         accessibilityRole="progressbar"
@@ -92,20 +93,22 @@ export const ScoreHeader = React.forwardRef<any, {
         <Animated.View style={[s.fill, { backgroundColor: fill }, fillStyle]} />
         {stats.total && !stats.closed ? <View style={[s.mark, { start: `${STREAK_GOAL * 100}%`, backgroundColor: fg }]} /> : null}
       </View>
+      </View>
     </Animated.View>
   );
 });
 
 const s = StyleSheet.create({
-  wrap: { paddingHorizontal: 20, paddingTop: 10, paddingBottom: 12 },
+  wrap: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 8 },
   top: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: 12 },
   date: { fontFamily: font.medium, fontSize: 14, opacity: 0.7, flexShrink: 1, fontVariant: ['tabular-nums', 'lining-nums'] },
   topEnd: { flexDirection: 'row', alignItems: 'baseline', gap: 14 },
   alarm: { fontFamily: font.medium, fontSize: 14, fontVariant: ['tabular-nums', 'lining-nums'] },
-  score: { flexDirection: 'row', alignItems: 'baseline', gap: 6, marginTop: 2 },
+  score: { flexDirection: 'row', alignItems: 'center', gap: 14, marginTop: 2 },
+  num: { flexDirection: 'row', alignItems: 'baseline', gap: 4 },
   big: { fontFamily: font.black, fontVariant: ['tabular-nums', 'lining-nums'] },
-  total: { fontFamily: font.light, fontSize: 20, opacity: 0.45, fontVariant: ['lining-nums'] },
-  bar: { height: 6, borderRadius: 3, marginTop: 8 },
-  fill: { position: 'absolute', top: 0, bottom: 0, start: 0, borderRadius: 3 },
+  total: { fontFamily: font.light, fontSize: 15, opacity: 0.45, fontVariant: ['lining-nums'] },
+  bar: { flex: 1, height: 4, borderRadius: 2 },
+  fill: { position: 'absolute', top: 0, bottom: 0, start: 0, borderRadius: 2 },
   mark: { position: 'absolute', top: -3, bottom: -3, width: 2, marginStart: -1, opacity: 0.35 },
 });

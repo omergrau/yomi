@@ -111,11 +111,25 @@ export function Agenda({ date, onToggle }: { date: string; onToggle: Toggle }) {
   // The item on now or next gets its time in green.
   const lead = isToday ? nextUp(items.filter((i) => !i.done), now) : null;
 
+  // On today, what has already ended folds away under one quiet line until it is opened.
+  const isPast = (i: AgendaItem) => {
+    const end = i.end ?? (i.start !== null ? i.start + 30 * 60000 : null);
+    return isToday && !i.allDay && end !== null && end <= now;
+  };
+  const past = items.filter(isPast);
+  const [showPast, setShowPast] = useState(false);
+  const shown = showPast ? items : items.filter((i) => !isPast(i));
+
   if (!items.length) return null;
 
   return (
     <View style={s.wrap}>
-      {items.map((i) => (
+      {past.length ? (
+        <Pressable onPress={() => setShowPast(!showPast)} hitSlop={6} style={s.pastHead} accessibilityRole="button" accessibilityState={{ expanded: showPast }}>
+          <Text style={[s.pastT, { color: t.soft }]}>{showPast ? tr.agendaPastHide : tr.agendaPast(past.length)}</Text>
+        </Pressable>
+      ) : null}
+      {shown.map((i) => (
         <Row key={i.key} item={i} task={i.taskId ? byId.get(i.taskId) : undefined} now={now} isToday={isToday} next={lead?.item.key === i.key} onToggle={onToggle} t={t} />
       ))}
       {access === 'denied' ? <Text style={[s.note, { color: t.mute }]}>{tr.calendarDenied}</Text> : null}
@@ -126,16 +140,18 @@ export function Agenda({ date, onToggle }: { date: string; onToggle: Toggle }) {
 
 const s = StyleSheet.create({
   wrap: { paddingTop: 2, paddingBottom: 2 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20, minHeight: 52 },
+  pastHead: { alignSelf: 'flex-start', paddingHorizontal: 20, paddingVertical: 6 },
+  pastT: { fontFamily: font.medium, fontSize: 13 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20, minHeight: 46 },
   check: { width: 22, height: 22, borderRadius: 11, borderWidth: 1.5, borderColor: 'transparent', alignItems: 'center', justifyContent: 'center' },
   tick: { fontFamily: font.bold, fontSize: 13, lineHeight: 17 },
-  main: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, minHeight: 52 },
+  main: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 7, minHeight: 46 },
   when: { width: 42, alignItems: 'flex-start' },
   start: { fontSize: 14, fontVariant: ['tabular-nums', 'lining-nums'] },
   end: { fontFamily: font.regular, fontSize: 11.5, fontVariant: ['tabular-nums', 'lining-nums'] },
   bar: { width: 3, alignSelf: 'stretch', borderRadius: 2 },
   info: { flex: 1 },
-  title: { fontSize: 16.5 },
+  title: { fontSize: 16 },
   sub: { fontFamily: font.regular, fontSize: 12.5 },
   note: { fontFamily: font.regular, fontSize: 12.5, paddingHorizontal: 20, paddingTop: 4 },
   rule: { height: StyleSheet.hairlineWidth, marginHorizontal: 20, marginTop: 6, marginBottom: 4 },
