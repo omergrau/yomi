@@ -2,6 +2,7 @@
 // The phone never loads this: it is used by repo.ts, the web stand-in, and only when the page asks for it.
 import { addDays, toIso, weekDays } from '../domain/dates';
 import { addItem, applyChange, createGroup, createList, createRecurring, createTask, emptyData, toggleItem } from '../domain/logic';
+import type { SavedChat } from '../assistant/chats';
 import type { AppData, Change, Points } from '../domain/types';
 import { t as tr } from '../i18n';
 
@@ -91,4 +92,31 @@ export function demoData(): AppData {
     },
   ];
   return d;
+}
+
+/** Saved talks for the prototype: the one on screen, a short one from yesterday and a long one with its summary. */
+export const DEMO_CHAT_ID = 'demo-now';
+export function demoChats(): SavedChat[] {
+  const now = Date.now();
+  const day = 86400000;
+  const lines = (pairs: [string, string][]) => pairs.flatMap(([q, a]) => [{ from: 'me' as const, text: q }, { from: 'bot' as const, text: a }]);
+  const long = lines([
+    ['תעזור לי לתכנן את שבוע המבחנים', 'בשמחה. מתי המבחנים, ובאילו מקצועות?'],
+    ['אלגוריתמים ביום ראשון ומבני נתונים ביום רביעי', 'רשמתי. כמה שעות ביום אתה רוצה ללמוד?'],
+    ['בערך 4 שעות', 'מעולה. שמתי שתי יחידות של שעתיים בכל יום, **09:00** ו-**14:00**.'],
+    ['תזיז את של יום שלישי לערב', 'הזזתי את הלמידה של יום שלישי ל-**18:00–20:00**.'],
+    ['ומה עם האימונים?', 'השארתי את האימונים בבוקר, הם לא מתנגשים.'],
+  ]);
+  return [
+    { id: DEMO_CHAT_ID, title: demoConversation[0]?.q ?? '', updatedAt: now - 60000, lines: lines(demoConversation.map((x) => [x.q, x.a])), summary: null, summaryUpto: 0 },
+    {
+      id: 'demo-short', title: 'מתי הכדורגל השבוע?', updatedAt: now - day,
+      lines: lines([['מתי הכדורגל השבוע?', 'הכדורגל ביום **שישי, 18:00–20:00**.']]), summary: null, summaryUpto: 0,
+    },
+    {
+      id: 'demo-long', title: 'תעזור לי לתכנן את שבוע המבחנים', updatedAt: now - 3 * day, lines: long,
+      summary: 'תכננו את שבוע המבחנים: אלגוריתמים ביום ראשון, מבני נתונים ביום רביעי. נקבעו 4 שעות למידה ביום, ב-09:00 וב-14:00, והלמידה של יום שלישי הוזזה ל-18:00–20:00.',
+      summaryUpto: 4,
+    },
+  ];
 }

@@ -1,4 +1,5 @@
 import { openDatabaseSync, type SQLiteDatabase } from 'expo-sqlite';
+import type { SavedChat } from '../assistant/chats';
 import type { Alarm, AppData, Change, Note, Checklist, DayLog, Group, Recurring, Task, TaskEvent } from '../domain/types';
 import type { Repo } from './repoTypes';
 
@@ -41,6 +42,9 @@ export const MIGRATIONS = [
   `,
   `
   CREATE TABLE notes (id TEXT PRIMARY KEY NOT NULL, text TEXT NOT NULL, created_at INTEGER NOT NULL);
+  `,
+  `
+  CREATE TABLE chats (id TEXT PRIMARY KEY NOT NULL, updated_at INTEGER NOT NULL, body TEXT NOT NULL);
   `,
 ];
 
@@ -160,6 +164,23 @@ export function openRepo(): Repo {
         events.forEach((e) => putEvent(db, e));
         putMeta(db, d.meta);
       });
+    },
+    chats() {
+      const out: SavedChat[] = [];
+      for (const r of db.getAllSync<{ body: string }>('SELECT body FROM chats ORDER BY updated_at DESC')) {
+        try {
+          out.push(JSON.parse(r.body));
+        } catch {
+          // A talk that cannot be read is skipped; the plan itself is never touched.
+        }
+      }
+      return out;
+    },
+    putChat: (c) => {
+      db.runSync('INSERT OR REPLACE INTO chats (id,updated_at,body) VALUES (?,?,?)', [c.id, c.updatedAt, JSON.stringify(c)]);
+    },
+    removeChat: (id) => {
+      db.runSync('DELETE FROM chats WHERE id = ?', [id]);
     },
   };
 }

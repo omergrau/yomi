@@ -173,4 +173,18 @@ describe('phone database', () => {
     repo.removeEvents(a.events!.map((e) => e.id));
     expect(repo.allEvents()).toEqual([]);
   });
+  it('keeps saved talks apart from the plan, and a restore leaves them alone', async () => {
+    const { openRepo } = await import('./repo.native');
+    const repo = openRepo();
+    const chat = { id: 'c1', title: 'מה נשאר?', updatedAt: NOW, lines: [{ from: 'me' as const, text: 'מה נשאר?' }, { from: 'bot' as const, text: '**שתי** משימות' }], summary: null, summaryUpto: 0 };
+    repo.putChat(chat);
+    repo.putChat({ ...chat, id: 'c2', updatedAt: NOW + 1 });
+    expect(repo.chats().map((c) => c.id)).toEqual(['c2', 'c1']);
+    expect(repo.chats()[1]).toEqual(chat);
+    repo.replaceAll(L.emptyData(), []);
+    expect(repo.chats()).toHaveLength(2);
+    repo.removeChat('c2');
+    expect(repo.chats().map((c) => c.id)).toEqual(['c1']);
+    expect(repo.load()).toEqual(L.emptyData());
+  });
 });

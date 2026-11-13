@@ -1,4 +1,5 @@
 // The single source of truth. Every change goes through commit(), which saves first and then updates the screen.
+import { keepChats, type SavedChat } from './assistant/chats';
 import * as Haptics from 'expo-haptics';
 import { useSyncExternalStore } from 'react';
 import { AppState, Platform } from 'react-native';
@@ -236,6 +237,14 @@ export function initStore() {
 export const setView = (view: string) => set({ view });
 export const openSheet = (sheet: SheetState) => set({ sheet });
 export const closeSheet = () => set({ sheet: null });
+/** The saved talks with the assistant, newest first. Saving one drops the oldest beyond five. */
+export const savedChats = () => repo.chats();
+export function saveChat(chat: SavedChat) {
+  repo.putChat(chat);
+  keepChats(repo.chats()).drop.forEach((id) => repo.removeChat(id));
+}
+export const removeChat = (id: string) => repo.removeChat(id);
+
 export const taskHistory = (id: string): TaskEvent[] => L.historyLabelOrder(repo.eventsFor(id));
 
 const dayWord = (date: string) => (date === S.today ? tr.today : date === addDays(S.today, 1) ? tr.tomorrow : tr.dayName(fmtDay(date)));

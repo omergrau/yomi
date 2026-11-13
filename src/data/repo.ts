@@ -1,13 +1,15 @@
 // Used by the web preview only. The phone uses repo.native.ts with SQLite.
 import { applyChange, emptyData } from '../domain/logic';
 import type { AppData, Change, TaskEvent } from '../domain/types';
-import { demoData } from './demo';
+import type { SavedChat } from '../assistant/chats';
+import { demoChats, demoData } from './demo';
 import type { Repo } from './repoTypes';
 
 export function openRepo(): Repo {
   // The browser prototype sets this flag to open on a sample week.
   let data: AppData = (globalThis as { __YOMI_DEMO__?: boolean }).__YOMI_DEMO__ ? demoData() : emptyData();
   let events: TaskEvent[] = [];
+  let chats: SavedChat[] = (globalThis as { __YOMI_DEMO__?: boolean }).__YOMI_DEMO__ ? demoChats() : [];
   return {
     load: () => data,
     apply(change: Change) {
@@ -22,6 +24,13 @@ export function openRepo(): Repo {
     replaceAll(d, e) {
       data = d;
       events = e;
+    },
+    chats: () => [...chats].sort((a, b) => b.updatedAt - a.updatedAt),
+    putChat: (c) => {
+      chats = [...chats.filter((x) => x.id !== c.id), c];
+    },
+    removeChat: (id) => {
+      chats = chats.filter((x) => x.id !== id);
     },
   };
 }

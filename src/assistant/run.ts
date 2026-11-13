@@ -9,6 +9,8 @@ import { getApiKey } from './key';
 
 const MODEL = 'claude-opus-5-5';
 const MAX_STEPS = 8;
+// Summaries of old talks are written by the small model, which costs a small part of the main one.
+const SUMMARY_MODEL = 'claude-haiku-5-5';
 
 // Optional fields are simply left out of `required`; runAction fills in what is missing.
 const optional = (type: string, description: string) => ({ type, description });
@@ -217,9 +219,37 @@ export const conversationMark = () => history.length;
 export const rewindConversation = (mark: number) => {
   history = history.slice(0, mark);
 };
+// A talk that goes on from a saved one carries its background in front of the first message.
+let carry: string | null = null;
 export const resetConversation = () => {
   history = [];
+  carry = null;
 };
+/** Starts a talk that goes on from a saved one: nothing of it is sent until the next message. */
+export const continueConversation = (background: string) => {
+  history = [];
+  carry = background;
+};
+
+/** A few lines on what an old talk was about, for carrying it on. Returns null if it could not be written. */
+export async function summarizeChat(transcript: string): Promise<string | null> {
+  const apiKey = await getApiKey();
+  if (!apiKey || !transcript.trim()) return null;
+  try {
+    const client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true, maxRetries: 1 });
+    const r = await client.beta.messages.create({
+      model: SUMMARY_MODEL,
+      max_tokens: 400,
+      system:
+        'You summarize a talk between a person and their planning assistant, so the assistant can carry it on later. Write 3 to 5 short lines in Hebrew, plain text with no formatting: what was discussed, what was decided, what the assistant changed in the app, and what is still open. Keep names, days and times exactly as written.',
+      messages: [{ role: 'user', content: transcript }],
+    });
+    const text = r.content.filter((b): b is Anthropic.Beta.BetaTextBlock => b.type === 'text').map((b) => b.text).join('\n').trim();
+    return text || null;
+  } catch {
+    return null;
+  }
+}
 
 async function eventsFor(from: string, to: string): Promise<CalEvent[]> {
   try {
@@ -255,7 +285,8 @@ export async function ask(text: string): Promise<AssistantTurn> {
   const client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true, maxRetries: 1 });
   const turn: AssistantTurn = { reply: '', summaries: [], undo: [] };
   const start = history.length;
-  history.push({ role: 'user', content: [{ type: 'text', text: `${contextLine()}\n${text}` }] });
+  const lead = !history.length && carry ? `${carry}\n\n` : '';
+  history.push({ role: 'user', content: [{ type: 'text', text: `${lead}${contextLine()}\n${text}` }] });
 
   try {
     for (let step = 0; step < MAX_STEPS; step++) {
