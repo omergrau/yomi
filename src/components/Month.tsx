@@ -1,5 +1,5 @@
 // A month at a glance, laid out like the phone's calendar: a grid of days with short coloured entries,
-// and the chosen day's full list underneath.
+// and the chosen day's full list underneath. The grid stays in place; only the day's list scrolls.
 import React, { useEffect, useMemo, useState } from 'react';
 import { AppState, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { calendarAccess, eventsBetween, type PhoneEvent } from '../calendar';
@@ -13,6 +13,9 @@ import { font, groupColor, useTheme, type Theme } from '../theme';
 import { hm } from './Agenda';
 
 type Entry = { key: string; title: string; color: string; done: boolean; start: number | null; taskId: string | null; source: AgendaItem['source'] };
+
+// The entries a day's cell shows before "+N"; kept small so the fixed grid leaves room for the list.
+const CELL_ROWS = 2;
 
 const firstOfMonth = (iso: string) => `${iso.slice(0, 7)}-01`;
 const shiftMonth = (iso: string, n: number) => {
@@ -105,7 +108,7 @@ export function Month() {
   const m = parseIso(month);
 
   return (
-    <ScrollView contentContainerStyle={s.page}>
+    <View style={s.page}>
       <View style={s.head}>
         <Text style={[s.title, { color: t.ink }]}>{`${tr.monthNames[m.getMonth()]} ${m.getFullYear()}`}</Text>
         <View style={s.arrows}>
@@ -154,12 +157,12 @@ export function Month() {
                   <View style={[s.num, isToday ? { backgroundColor: t.accent } : null]}>
                     <Text style={[s.numT, { color: isToday ? t.onAccent : t.ink, fontFamily: isToday || isSel ? font.bold : font.regular }]}>{parseIso(day).getDate()}</Text>
                   </View>
-                  {list.slice(0, 3).map((e) => (
+                  {list.slice(0, CELL_ROWS).map((e) => (
                     <View key={e.key} style={[s.ev, { backgroundColor: e.done ? 'transparent' : `${e.color}26`, borderColor: e.color }]}>
                       <Text numberOfLines={1} style={[s.evT, { color: e.done ? t.soft : t.ink, textDecorationLine: e.done ? 'line-through' : 'none' }]}>{e.title}</Text>
                     </View>
                   ))}
-                  {list.length > 3 ? <Text style={[s.more, { color: t.mute }]}>{tr.monthMore(list.length - 3)}</Text> : null}
+                  {list.length > CELL_ROWS ? <Text style={[s.more, { color: t.mute }]}>{tr.monthMore(list.length - CELL_ROWS)}</Text> : null}
                 </Pressable>
               );
             })}
@@ -175,12 +178,14 @@ export function Month() {
           </Pressable>
         ) : null}
       </View>
-      {sel.length ? (
-        sel.map((e) => <DayRow key={e.key} e={e} t={t} />)
-      ) : (
-        <Text style={[s.empty, { color: t.mute }]}>{tr.monthDayEmpty}</Text>
-      )}
-    </ScrollView>
+      <ScrollView style={s.flex} contentContainerStyle={s.list}>
+        {sel.length ? (
+          sel.map((e) => <DayRow key={e.key} e={e} t={t} />)
+        ) : (
+          <Text style={[s.empty, { color: t.mute }]}>{tr.monthDayEmpty}</Text>
+        )}
+      </ScrollView>
+    </View>
   );
 }
 
@@ -202,23 +207,25 @@ function DayRow({ e, t }: { e: Entry; t: Theme }) {
 }
 
 const s = StyleSheet.create({
-  page: { paddingHorizontal: 12, paddingTop: 10, paddingBottom: 40 },
+  page: { flex: 1, paddingHorizontal: 12, paddingTop: 10 },
+  flex: { flex: 1 },
+  list: { paddingBottom: 40 },
   head: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 4 },
   title: { fontFamily: font.serif, fontSize: 24 },
   arrows: { flexDirection: 'row', alignItems: 'center', gap: 18 },
   arrow: { fontFamily: font.regular, fontSize: 28, lineHeight: 32 },
   todayBtn: { fontFamily: font.semibold, fontSize: 14 },
-  left: { fontFamily: font.regular, fontSize: 13, paddingHorizontal: 4, marginBottom: 8 },
+  left: { fontFamily: font.regular, fontSize: 13, paddingHorizontal: 4, marginBottom: 6 },
   grid: { borderWidth: 1, borderRadius: 12, overflow: 'hidden' },
   week: { flexDirection: 'row' },
   wd: { flex: 1, textAlign: 'center', fontFamily: font.regular, fontSize: 11.5, paddingVertical: 5 },
-  cell: { flex: 1, minHeight: 74, paddingHorizontal: 1.5, paddingTop: 3, paddingBottom: 3, gap: 1.5 },
+  cell: { flex: 1, minHeight: 58, paddingHorizontal: 1.5, paddingTop: 3, paddingBottom: 3, gap: 1.5 },
   num: { alignSelf: 'center', width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', marginBottom: 1 },
   numT: { fontSize: 12.5, fontVariant: ['lining-nums'] },
   ev: { borderStartWidth: 2, borderRadius: 3, paddingHorizontal: 2, paddingVertical: 0.5 },
   evT: { fontFamily: font.regular, fontSize: 9.5, lineHeight: 12 },
   more: { fontFamily: font.semibold, fontSize: 9.5, textAlign: 'center' },
-  dayHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', paddingHorizontal: 4, paddingTop: 16, paddingBottom: 6 },
+  dayHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', paddingHorizontal: 4, paddingTop: 12, paddingBottom: 4 },
   dayTitle: { fontFamily: font.serif, fontSize: 17 },
   add: { fontFamily: font.semibold, fontSize: 14 },
   empty: { fontFamily: font.regular, fontSize: 14, paddingHorizontal: 4 },
